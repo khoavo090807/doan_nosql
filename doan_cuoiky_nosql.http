@@ -1,0 +1,6 @@
+@doan_cuoiky_nosql_HostAddress = http://localhost:5072
+
+GET {{doan_cuoiky_nosql_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

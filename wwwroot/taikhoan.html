@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LMS - Quản lý Tài khoản &amp; Phân quyền</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+</head>
+<body>
+  <main id="page-main-content">
+    <div id="alertBox"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h4 class="mb-0">Quản lý Tài khoản &amp; Phân quyền</h4>
+        <small class="text-muted">CRUD tài khoản, gán vai trò (Admin / Giáo viên / Sinh viên), khóa / kích hoạt tài khoản</small>
+      </div>
+      <button class="btn btn-primary" onclick="openModalCreateAccount()">
+        <i class="bi bi-person-plus-fill me-1"></i> Thêm tài khoản mới
+      </button>
+    </div>
+
+    <!-- Filter -->
+    <div class="card mb-4 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Lọc theo Vai trò</label>
+            <select id="accFilterRole" class="form-select" onchange="loadAccounts()">
+              <option value="">Tất cả vai trò</option>
+              <option value="admin">Admin (Quản trị)</option>
+              <option value="giaovien">Giáo viên</option>
+              <option value="sinhvien">Sinh viên</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Tìm kiếm</label>
+            <input id="accSearchText" class="form-control" placeholder="Tìm theo username, họ tên, mã GV/SV..." oninput="loadAccounts()" />
+          </div>
+          <div class="col-md-3 text-end">
+            <span id="accCountBadge" class="badge bg-secondary p-2">Đang tải...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accounts Table -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Username</th>
+              <th>Họ và tên</th>
+              <th>Vai trò</th>
+              <th>Liên kết (Mã GV/SV)</th>
+              <th class="text-center">Trạng thái</th>
+              <th class="text-end">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="accTableBody">
+            <tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Thêm / Sửa Tài Khoản -->
+  <div class="modal fade" id="modalAccount" tabindex="-1">
+    <div class="modal-dialog">
+      <form class="modal-content" onsubmit="submitSaveAccount(event)">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="modalAccountTitle"><i class="bi bi-person-fill me-1"></i> Thêm tài khoản</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="accIsEdit" />
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Tên đăng nhập (Username) <span class="text-danger">*</span></label>
+            <input id="accUsername" class="form-control" required placeholder="VD: GV001, SV2026001..." />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Mật khẩu <span id="accPasswordRequired" class="text-danger">*</span></label>
+            <input id="accPassword" type="password" class="form-control" placeholder="Nhập mật khẩu..." />
+            <small class="text-muted" id="accPasswordHelp" style="display:none;">Để trống nếu không muốn đổi mật khẩu.</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Họ và tên <span class="text-danger">*</span></label>
+            <input id="accHoTen" class="form-control" required placeholder="VD: Nguyễn Văn A" />
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Vai trò <span class="text-danger">*</span></label>
+              <select id="accRole" class="form-select" required>
+                <option value="admin">Admin (Quản trị)</option>
+                <option value="giaovien">Giáo viên</option>
+                <option value="sinhvien">Sinh viên</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">Mã liên kết (MaGV / MSSV)</label>
+              <input id="accRefId" class="form-control" placeholder="VD: GV001 hoặc SV2026001" />
+            </div>
+          </div>
+
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="accIsActive" checked />
+            <label class="form-check-label fw-semibold small" for="accIsActive">Kích hoạt tài khoản (cho phép đăng nhập)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button class="btn btn-primary" id="accSaveBtn"><i class="bi bi-check2-circle me-1"></i> Lưu thông tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    renderLayout('taikhoan');
+    loadAccounts();
+  </script>
+</body>
+</html>

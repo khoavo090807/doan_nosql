@@ -1,0 +1,168 @@
+[{
+  "_id": "admin",
+  "PasswordHash": "$2a$11$vd6xPDYPQ0QJnt9stftxTOb9K442CEnLQ2hSKS2b9iNiBSCNuZOdG",
+  "Role": "admin",
+  "RefId": null,
+  "HoTen": "Quản trị hệ thống",
+  "IsActive": true
+},
+{
+  "_id": "GV001",
+  "PasswordHash": "$2a$11$xMdwgGQjd.UeKJdfBLuf9eg//UkI9hQTPMsLc7gt8Veco7AZ0kG1.",
+  "Role": "giaovien",
+  "RefId": "GV001",
+  "HoTen": "Nguyễn Văn A",
+  "IsActive": true
+},
+{
+  "_id": "GV002",
+  "PasswordHash": "$2a$11$0aETx9FYz4PIupgM5ro6H.OSyME1UJSmHnP1TUQzyR/zdAwy1kzrO",
+  "Role": "giaovien",
+  "RefId": "GV002",
+  "HoTen": "Trần Thị Cúc",
+  "IsActive": true
+},
+{
+  "_id": "GV003",
+  "PasswordHash": "$2a$11$3Gg444Wega11.iPatdhOYexebcQwpiu0rnTSWN2MOyzpJf5KW9Jwa",
+  "Role": "giaovien",
+  "RefId": "GV003",
+  "HoTen": "Lê Hoàng Dũng",
+  "IsActive": true
+},
+{
+  "_id": "GV004",
+  "PasswordHash": "$2a$11$YwT5yjV9a3oTRsKsKURxNucS/wBTPWGFOCZxNkFCSfRhziCZDS9nK",
+  "Role": "giaovien",
+  "RefId": "GV004",
+  "HoTen": "Phạm Quốc Hải",
+  "IsActive": true
+},
+{
+  "_id": "GV005",
+  "PasswordHash": "$2a$11$Ma1lp3YOuWASOqH8sSaST.tOcggXeaNC89AuHl3pQSvgwn6QfNnme",
+  "Role": "giaovien",
+  "RefId": "GV005",
+  "HoTen": "Vũ Tuyết Mai",
+  "IsActive": true
+},
+{
+  "_id": "GV006",
+  "PasswordHash": "$2a$11$sOxhJ.05dpo2uMIUhg0GQ.SCZ3gUTnjyZpDen8N1YQ.fo6VgIOf.e",
+  "Role": "giaovien",
+  "RefId": "GV006",
+  "HoTen": "Trần Văn B",
+  "IsActive": true
+},
+{
+  "_id": "GV007",
+  "PasswordHash": "$2a$11$uFDt2iv6KlRlyl9Ppa452OcbaDoEvnCB0wJg.ZEH9bgwpb597Lpne",
+  "Role": "giaovien",
+  "RefId": "GV007",
+  "HoTen": "Ngô Quang Huy",
+  "IsActive": true
+},
+{
+  "_id": "GV008",
+  "PasswordHash": "$2a$11$irun/wi3lWQWRg27oN7YSOeqdjfd16QL/b0RQ6twrpprMRUGquJLy",
+  "Role": "giaovien",
+  "RefId": "GV008",
+  "HoTen": "Đặng Hoàng Long",
+  "IsActive": true
+},
+{
+  "_id": "GV009",
+  "PasswordHash": "$2a$11$CbZbHXQKb8tqT0W18bb4xOsNC6LGUpMisIFKc9viHtMTtAiuw2.8a",
+  "Role": "giaovien",
+  "RefId": "GV009",
+  "HoTen": "Bùi Thị Phương",
+  "IsActive": true
+},
+{
+  "_id": "GV010",
+  "PasswordHash": "$2a$11$L/6B0.iV3QvpXLy1keuPOuymySSiieJrzEozVovzgi3fG6C/y4S5q",
+  "Role": "giaovien",
+  "RefId": "GV010",
+  "HoTen": "Lê Thị C",
+  "IsActive": true
+},
+{
+  "_id": "GV011",
+  "PasswordHash": "$2a$11$3srGSOnbkmqxkveim/G9Mucb5PCC8sHHMoNefUuw9e3/nYL2gZd4C",
+  "Role": "giaovien",
+  "RefId": "GV011",
+  "HoTen": "Nguyễn Thanh Sơn",
+  "IsActive": true
+},
+{
+  "_id": "GV012",
+  "PasswordHash": "$2a$11$0Du3mBnpPS/t1kDrj6DjDedXQtmZeoTMbjKOYr/FUMlzAVJGUUjJe",
+  "Role": "giaovien",
+  "RefId": "GV012",
+  "HoTen": "Dương Minh Châu",
+  "IsActive": true
+},
+{
+  "_id": "GV013",
+  "PasswordHash": "$2a$11$aEjYKOq/lRr8oHiHNqt.YO.tzTx8wRvAI.3FFCGRDh0IqltDs/BtG",
+  "Role": "giaovien",
+  "RefId": "GV013",
+  "HoTen": "Hoàng Bích Ngọc",
+  "IsActive": true
+},
+{
+  "_id": "GV014",
+  "PasswordHash": "$2a$11$s43UhHXRBJM0DX/XMwqgPuwtA7yZg6mlq2nRtArPQ/6KCMyIZ7wC.",
+  "Role": "giaovien",
+  "RefId": "GV014",
+  "HoTen": "Phạm Hoàng D",
+  "IsActive": true
+},
+{
+  "_id": "GV015",
+  "PasswordHash": "$2a$11$3Wq8demDdmcx16HatJVN.uvayeUwBoiTcMhDeEefkCQvMId93QlP6",
+  "Role": "giaovien",
+  "RefId": "GV015",
+  "HoTen": "Nguyễn Kim Ngân",
+  "IsActive": true
+},
+{
+  "_id": "GV016",
+  "PasswordHash": "$2a$11$URQNpPW69.HOynch9eOv1O/w9k1Oh8D.5VsMZdC/rmUwLz6ZE7sHe",
+  "Role": "giaovien",
+  "RefId": "GV016",
+  "HoTen": "Lê Anh Tuấn",
+  "IsActive": true
+},
+{
+  "_id": "GV017",
+  "PasswordHash": "$2a$11$CWzIYyP/sE6aj9Q/WBr9RuzMYuxl2u/zLyjZSK6F7WRBU91mSvdOi",
+  "Role": "giaovien",
+  "RefId": "GV017",
+  "HoTen": "Đỗ Minh E",
+  "IsActive": true
+},
+{
+  "_id": "GV018",
+  "PasswordHash": "$2a$11$flEZJ/0yBcMVN4t/Ecro8OdsOiqbAxA2rxguoRXubxJVchM73qA/S",
+  "Role": "giaovien",
+  "RefId": "GV018",
+  "HoTen": "Trịnh Thị Khánh",
+  "IsActive": true
+},
+{
+  "_id": "GV019",
+  "PasswordHash": "$2a$11$joO7S2uSPFzMDAkz5AyPKuiRBMhKBpAFFpRGVoCrfcOYkvoxAlQ6y",
+  "Role": "giaovien",
+  "RefId": "GV019",
+  "HoTen": "Võ Thành Trung",
+  "IsActive": true
+},
+{
+  "_id": "GV020",
+  "PasswordHash": "$2a$11$9wVi9WAyGkNRCC/Gk44Lm.c0q08SgsDpG5q7XJmIXkgee75pxe9l6",
+  "Role": "giaovien",
+  "RefId": "GV020",
+  "HoTen": "Lâm Nhất Huy",
+  "IsActive": true
+}]

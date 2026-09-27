@@ -1,0 +1,480 @@
+[{
+  "_id": "MH001",
+  "TenMon": "Cơ sở dữ liệu NoSQL",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Hiểu bản chất kiến trúc NoSQL",
+      "MucDo": "Understanding"
+    },
+    {
+      "MaCLO": "CLO2",
+      "MoTa": "Thành thạo query, aggregate & index",
+      "MucDo": "Applying"
+    },
+    {
+      "MaCLO": "CLO3",
+      "MoTa": "Thiết kế Data Model ứng dụng",
+      "MucDo": "Creating"
+    }
+  ]
+},
+{
+  "_id": "MH002",
+  "TenMon": "Lập trình Java Nâng cao",
+  "SoTinChi": 4,
+  "LyThuyet": 45,
+  "ThucHanh": 30,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Lập trình đa luồng & Design Patterns",
+      "MucDo": "Understanding"
+    },
+    {
+      "MaCLO": "CLO2",
+      "MoTa": "Xây dựng RESTful API với Spring Boot",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH003",
+  "TenMon": "Nhập môn Điện toán Mây",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Hiểu mô hình Cloud",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH011",
+  "TenMon": "Cấu trúc dữ liệu và Giải thuật",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Hiểu cấu trúc dữ liệu cơ bản",
+      "MucDo": "Understanding"
+    },
+    {
+      "MaCLO": "CLO2",
+      "MoTa": "Cài đặt thuật toán tìm kiếm và sắp xếp",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH012",
+  "TenMon": "Mạng máy tính căn bản",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Nắm vững mô hình OSI và TCP/IP",
+      "MucDo": "Understanding"
+    },
+    {
+      "MaCLO": "CLO2",
+      "MoTa": "Cấu hình mạng LAN/VLAN cơ bản",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH013",
+  "TenMon": "Phân tích và Thiết kế Hệ thống",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K01",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Vẽ biểu đồ UML cho hệ thống",
+      "MucDo": "Applying"
+    },
+    {
+      "MaCLO": "CLO2",
+      "MoTa": "Thiết kế kiến trúc phần mềm",
+      "MucDo": "Creating"
+    }
+  ]
+},
+{
+  "_id": "MH004",
+  "TenMon": "Mạch Điện Tử",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Thiết kế mạch khuếch đại",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH005",
+  "TenMon": "Lập Trình Vi Điều Khiển",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Lập trình C cho ARM",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH010",
+  "TenMon": "Toán Cao Cấp 1",
+  "SoTinChi": 2,
+  "LyThuyet": 30,
+  "ThucHanh": 0,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Tính toán Ma trận & Hệ PT",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH014",
+  "TenMon": "Kỹ thuật Điện tử số",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Thiết kế mạch logic số",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH015",
+  "TenMon": "Hệ thống Cảm biến",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Đọc và xử lý tín hiệu cảm biến",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH016",
+  "TenMon": "Tự động hóa Công nghiệp",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K02",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Lập trình PLC điều khiển hệ thống",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH006",
+  "TenMon": "Quản Trị Học",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Nắm vững chức năng quản trị",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH007",
+  "TenMon": "Marketing Căn Bản",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Xây dựng Marketing Mix 4P",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH017",
+  "TenMon": "Quản trị Tài chính",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Phân tích báo cáo tài chính doanh nghiệp",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH018",
+  "TenMon": "Quản trị Nhân sự",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Quy trình tuyển dụng và đánh giá nhân sự",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH019",
+  "TenMon": "Quản trị Chuỗi Cung ứng",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Tối ưu hóa kho vận và vận tải",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH020",
+  "TenMon": "Kinh tế Vĩ mô",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K03",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Hiểu các chỉ số kinh tế vĩ mô cơ bản",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH008",
+  "TenMon": "Tiếng Anh Giao Tiếp 1",
+  "SoTinChi": 2,
+  "LyThuyet": 15,
+  "ThucHanh": 30,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Giao tiếp công sở cơ bản",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH021",
+  "TenMon": "Tiếng Anh Thương mại 1",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Viết email và hợp đồng thương mại",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH022",
+  "TenMon": "Kỹ năng Biên Phiên dịch",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Dịch văn bản thương mại cơ bản",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH023",
+  "TenMon": "Tiếng Trung Cơ bản 1",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Giao tiếp tiếng Trung hằng ngày",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH024",
+  "TenMon": "Tiếng Nhật Cơ bản 1",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Nắm bảng chữ cái và câu giao tiếp sơ cấp",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH025",
+  "TenMon": "Giao thoa Văn hóa Doanh nghiệp",
+  "SoTinChi": 2,
+  "LyThuyet": 30,
+  "ThucHanh": 0,
+  "MaKhoa": "K04",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Ứng xử trong môi trường đa quốc gia",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH009",
+  "TenMon": "Hóa Học Thực Phẩm",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Phân tích nguyên liệu thực phẩm",
+      "MucDo": "Understanding"
+    }
+  ]
+},
+{
+  "_id": "MH026",
+  "TenMon": "Microbiology Thực phẩm",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Kểm soát vi sinh vật trong chế biến",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH027",
+  "TenMon": "Công nghệ Chế biến Thịt & Sữa",
+  "SoTinChi": 3,
+  "LyThuyet": 30,
+  "ThucHanh": 30,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Quy trình chế biến các sản phẩm động vật",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH028",
+  "TenMon": "An toàn và Tảo Đảm Chất lượng Thực phẩm",
+  "SoTinChi": 3,
+  "LyThuyet": 45,
+  "ThucHanh": 0,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Xây dựng hệ thống HACCP & ISO 22000",
+      "MucDo": "Creating"
+    }
+  ]
+},
+{
+  "_id": "MH029",
+  "TenMon": "Đánh giá Cảm quan Thực phẩm",
+  "SoTinChi": 2,
+  "LyThuyet": 15,
+  "ThucHanh": 30,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Phương pháp phép thử cảm quan",
+      "MucDo": "Applying"
+    }
+  ]
+},
+{
+  "_id": "MH030",
+  "TenMon": "Công nghệ Bao bì Thực phẩm",
+  "SoTinChi": 2,
+  "LyThuyet": 30,
+  "ThucHanh": 0,
+  "MaKhoa": "K05",
+  "CLO": [
+    {
+      "MaCLO": "CLO1",
+      "MoTa": "Lựa chọn vật liệu bao bì phù hợp",
+      "MucDo": "Understanding"
+    }
+  ]
+}]

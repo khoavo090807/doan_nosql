@@ -1,0 +1,25 @@
+Hãy đóng vai là một Software Architect và Fullstack Developer dạn dày kinh nghiệm. Tôi đang cần xây dựng một hệ thống Website Quản lý Điểm Sinh viên (Student Management System) hoàn chỉnh, có tính ứng dụng thực tế cao. 
+
+Dưới đây là đặc tả yêu cầu của hệ thống. Dựa vào đó, hãy giúp tôi thiết kế hệ thống và viết code chi tiết.
+
+### 1. Phân quyền và Kiến trúc chung (RBAC - Role-Based Access Control)
+- Hệ thống sử dụng xác thực (Authentication) bằng JWT.
+- Có 3 vai trò (Roles) riêng biệt: **Admin**, **Teacher**, và **Student**.
+- **Yêu cầu UI/UX:** Giao diện Frontend phải hiển thị động dựa trên Role của người dùng đăng nhập. Tuyệt đối không hiển thị menu hoặc chức năng của Role này cho Role khác (ví dụ: Sinh viên không thể thấy nút "Nhập điểm" hoặc "Quản lý tài khoản"). Nếu cố tình truy cập qua URL phải bị chặn bởi Guard/Middleware ở cả Frontend và Backend (trả về 403 Forbidden).
+
+### 2. Nghiệp vụ chi tiết theo Role
+**👨‍💻 Admin (Toàn quyền quản trị):**
+- **Quản lý Tài khoản:** Tạo, đọc, cập nhật, xóa (CRUD) tài khoản. Phân loại tài khoản (gán role Admin, Teacher, hoặc Student).
+- **Trạng thái Tài khoản:** Có khả năng vô hiệu hóa (Deactivate/Ban) tài khoản để chặn đăng nhập ngay lập tức, thay vì xóa hoàn toàn (Soft delete).
+- **Quản lý Đào tạo:** Quản lý danh sách Lớp học, Môn học, gán Giáo viên vào Lớp học.
+- **Quyền hạn:** Có thể xem và can thiệp vào mọi dữ liệu trong hệ thống.
+
+**👨‍🏫 Teacher (Giáo viên):**
+- **Quản lý Lớp học:** Chỉ được phép xem danh sách các Lớp học/Môn học mà mình được Admin phân công giảng dạy.
+- **Quản lý Sinh viên:** Xem danh sách sinh viên của lớp mình quản lý.
+- **Quản lý Điểm số:** Nhập điểm, sửa điểm, và xem bảng điểm tổng quát của các lớp mình phụ trách. Không thể can thiệp vào lớp của giáo viên khác.
+
+**👨‍🎓 Student (Sinh viên):**
+- **Đăng ký học:** Đăng ký tham gia vào các lớp học/học phần đang mở.
+- **Tra cứu điểm:** Xem điểm chi tiết các môn học của chính mình. (Chỉ xem được điểm của mình, không xem được của sinh viên khác).
+- **In bảng điểm:** Có chức năng xuất/in bảng điểm tổng hợp cá nhân ra định dạng PDF để sử dụng thực tế.

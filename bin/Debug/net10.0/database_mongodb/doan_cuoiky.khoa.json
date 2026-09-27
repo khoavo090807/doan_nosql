@@ -1,0 +1,55 @@
+[{
+  "_id": "K01",
+  "TenKhoa": "Công nghệ Thông tin",
+  "NamThanhLap": 2010,
+  "TruongKhoa": "PGS.TS. Nguyễn Văn A",
+  "BoMon": [
+    "Kỹ thuật Phần mềm",
+    "Hệ thống Thông tin",
+    "Mạng máy tính & An ninh mạng",
+    "Khoa học Dữ liệu"
+  ]
+},
+{
+  "_id": "K02",
+  "TenKhoa": "Điện - Điện tử",
+  "NamThanhLap": 2012,
+  "TruongKhoa": "TS. Trần Văn B",
+  "BoMon": [
+    "Tự động hóa",
+    "Điện tử Viễn thông",
+    "Hệ thống Điện"
+  ]
+},
+{
+  "_id": "K03",
+  "TenKhoa": "Quản trị Kinh doanh",
+  "NamThanhLap": 2011,
+  "TruongKhoa": "TS. Lê Thị C",
+  "BoMon": [
+    "Quản trị Doanh nghiệp",
+    "Marketing Digital",
+    "Logistics & Chuỗi cung ứng"
+  ]
+},
+{
+  "_id": "K04",
+  "TenKhoa": "Ngoại ngữ",
+  "NamThanhLap": 2014,
+  "TruongKhoa": "ThS. Phạm Hoàng D",
+  "BoMon": [
+    "Tiếng Anh Thương mại",
+    "Tiếng Trung Quốc",
+    "Tiếng Nhật"
+  ]
+},
+{
+  "_id": "K05",
+  "TenKhoa": "Công nghệ Thực phẩm",
+  "NamThanhLap": 2013,
+  "TruongKhoa": "PGS.TS. Đỗ Minh E",
+  "BoMon": [
+    "Công nghệ Chế biến",
+    "Quản lý Chất lượng & An toàn Thực phẩm"
+  ]
+}]

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LMS HUIT - Đăng nhập</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 440px;
+      border: none;
+      border-radius: 1rem;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    }
+    .login-brand {
+      background: #1e3c72;
+      border-top-left-radius: 1rem;
+      border-top-right-radius: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card login-card bg-white">
+    <div class="login-brand text-white p-4 text-center">
+      <i class="bi bi-mortarboard-fill display-4 mb-2 d-inline-block"></i>
+      <h4 class="mb-0 fw-bold">LMS HUIT</h4>
+      <small class="opacity-75">Hệ thống Quản lý &amp; Chấm điểm</small>
+    </div>
+    <div class="card-body p-4">
+      <div id="loginAlert" class="alert alert-danger d-none py-2 small" role="alert"></div>
+
+      <form onsubmit="handleLogin(event)">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Tên đăng nhập</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+            <input type="text" id="loginUsername" class="form-control" placeholder="admin / GV001 / SV..." required autofocus />
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Mật khẩu</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
+            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required />
+          </div>
+        </div>
+        <button type="submit" id="loginBtn" class="btn btn-primary w-100 py-2 fw-semibold">
+          <span id="loginBtnSpinner" class="spinner-border spinner-border-sm me-1 d-none"></span>
+          Đăng nhập
+        </button>
+      </form>
+
+      <div class="mt-4 pt-3 border-top">
+        <small class="text-muted d-block mb-2 fw-semibold">Tài khoản demo:</small>
+        <div class="d-flex flex-column gap-1 small text-muted">
+          <div><code class="text-primary fw-bold">admin</code> / <code>Admin@123</code> <span class="badge bg-danger ms-1">Admin</span></div>
+          <div><code class="text-primary fw-bold">GV001</code> / <code>GV001@Huit</code> <span class="badge bg-warning text-dark ms-1">Giáo viên</span></div>
+          <div><code class="text-primary fw-bold">SV2026001</code> / <code>SV2026001@Huit</code> <span class="badge bg-info text-dark ms-1">Sinh viên</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Nếu đã đăng nhập thì chuyển hướng luôn
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const refId = localStorage.getItem('refId');
+    if (token) {
+      if (role === 'sinhvien') window.location.href = '/diem.html' + (refId ? '?mssv=' + refId : '');
+      else window.location.href = '/';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const alertBox = document.getElementById('loginAlert');
+      const btn = document.getElementById('loginBtn');
+      const spinner = document.getElementById('loginBtnSpinner');
+
+      alertBox.classList.add('d-none');
+      btn.disabled = true;
+      spinner.classList.remove('d-none');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err || 'Đăng nhập thất bại.');
+        }
+
+        const data = await res.json();
+        localStorage.setItem('token', data.Token);
+        localStorage.setItem('username', data.Username);
+        localStorage.setItem('role', data.Role);
+        localStorage.setItem('refId', data.RefId || '');
+        localStorage.setItem('hoTen', data.HoTen);
+
+        if (data.Role === 'sinhvien') {
+          window.location.href = '/diem.html' + (data.RefId ? '?mssv=' + data.RefId : '');
+        } else {
+          window.location.href = '/';
+        }
+      } catch (err) {
+        alertBox.textContent = err.message.replace(/^"|"$/g, '');
+        alertBox.classList.remove('d-none');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+      }
+    }
+  </script>
+</body>
+</html>

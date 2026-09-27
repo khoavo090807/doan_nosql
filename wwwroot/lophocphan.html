@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LMS - Lớp học phần</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+</head>
+<body>
+<main id="page-main-content">
+  <div id="alertBox"></div>
+
+  <div class="page-header">
+    <div>
+      <h4><i class="bi bi-journal-bookmark text-primary me-2"></i>Quản lý Lớp học phần</h4>
+      <small class="text-muted">Danh sách các lớp học phần đang mở trong hệ thống</small>
+    </div>
+    <button class="btn btn-primary" id="btnAddLhp" data-bs-toggle="modal" data-bs-target="#modalLhp" onclick="openCreateLhp()">
+      <i class="bi bi-plus-lg me-1"></i> Thêm lớp học phần
+    </button>
+  </div>
+
+  <!-- Filter -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label">Tìm kiếm</label>
+          <input id="lhpSearch" class="form-control" placeholder="Tìm mã LHP, tên môn, giảng viên..." oninput="filterLhpTable()" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Học kỳ</label>
+          <select id="lhpFilterHk" class="form-select" onchange="filterLhpTable()">
+            <option value="">Tất cả học kỳ</option>
+            <option>HK1</option><option>HK2</option><option>HK3</option>
+          </select>
+        </div>
+        <div class="col-md-4 text-end">
+          <span id="lhpCount" class="badge bg-secondary p-2"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+<thead>
+           <tr>
+             <th>Mã LHP</th>
+             <th>Môn học</th>
+             <th>Học kỳ / Năm</th>
+             <th>Giảng viên</th>
+             <th>Phòng học</th>
+             <th>Lịch học</th>
+             <th class="text-center">Trạng thái</th>
+             <th class="text-center">Sĩ số</th>
+             <script>if(['admin','giaovien'].includes(localStorage.getItem('role')))document.write('<th class="text-end">Thao tác</th>')</script>
+           </tr>
+         </thead>
+         <tbody id="lhpTable">
+           <tr class="loading-row"><td colspan="9" class="text-center text-muted">
+             <div class="spinner-border spinner-border-sm text-primary me-2"></div>Đang tải...
+           </td></tr>
+         </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Thêm/Sửa LHP -->
+<div class="modal fade" id="modalLhp" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <form class="modal-content" onsubmit="saveLhp(event)">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="lhpModalTitle"><i class="bi bi-journal-plus me-2"></i>Thêm Lớp học phần</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="lhpIsEdit" />
+        <div id="modalLhp-error" class="alert alert-danger py-2 mb-3" style="display:none;"></div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Mã LHP <span class="text-danger">*</span></label>
+            <input id="lhpId" class="form-control" required placeholder="VD: LHP_MH011_HK2_2026" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Học kỳ</label>
+            <select id="lhpHk" class="form-select">
+              <option>HK1</option><option>HK2</option><option>HK3</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Năm học</label>
+            <input id="lhpNam" class="form-control" value="2026-2027" />
+          </div>
+          <!-- Chọn khoa -->
+          <div class="col-md-12">
+            <label class="form-label">Chọn khoa <span class="text-danger">*</span></label>
+            <div class="dropdown" style="width: 100%;">
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="lhpKhoaDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <span id="lhpKhoaText">Chọn khoa...</span>
+              </button>
+              <div class="dropdown-menu w-100" aria-labelledby="lhpKhoaDropdown" style="max-height: 300px; overflow-y: auto;">
+                <div class="p-2">
+                  <input type="text" id="lhpKhoaSearch" class="form-control form-control-sm" placeholder="Tìm khoa..." oninput="filterKhoaDropdown()" />
+                </div>
+                <div class="dropdown-divider"></div>
+                <div id="lhpKhoaOptions"></div>
+              </div>
+            </div>
+            <input type="hidden" id="lhpMaKhoa" />
+          </div>
+
+          <!-- Chọn môn học -->
+          <div class="col-md-12">
+            <label class="form-label">Môn học <span class="text-danger">*</span></label>
+            <div class="dropdown" style="width: 100%;">
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="lhpMonDropdown" data-bs-toggle="dropdown" aria-expanded="false" disabled>
+                <span id="lhpMonText">Vui lòng chọn khoa trước</span>
+              </button>
+              <div class="dropdown-menu w-100" aria-labelledby="lhpMonDropdown" style="max-height: 300px; overflow-y: auto;">
+                <div class="p-2">
+                  <input type="text" id="lhpMonSearch" class="form-control form-control-sm" placeholder="Tìm môn học..." oninput="filterMonDropdown()" />
+                </div>
+                <div class="dropdown-divider"></div>
+                <div id="lhpMonOptions"></div>
+              </div>
+            </div>
+            <input type="hidden" id="lhpMaMon" />
+            <input type="hidden" id="lhpTenMon" />
+          </div>
+          
+          <!-- Chọn giảng viên -->
+          <div class="col-md-12">
+            <label class="form-label">Chọn giảng viên <span class="text-danger">*</span></label>
+            <div class="dropdown" style="width: 100%;">
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="lhpGvDropdown" data-bs-toggle="dropdown" aria-expanded="false" disabled>
+                <span id="lhpGvText">Vui lòng chọn khoa trước</span>
+              </button>
+              <div class="dropdown-menu w-100" aria-labelledby="lhpGvDropdown" style="max-height: 300px; overflow-y: auto;">
+                <div class="p-2">
+                  <input type="text" id="lhpGvSearch" class="form-control form-control-sm" placeholder="Tìm giảng viên..." oninput="filterGvDropdown()" />
+                </div>
+                <div class="dropdown-divider"></div>
+                <div id="lhpGvOptions">
+                  <!-- Giảng viên options sẽ được load bằng JavaScript -->
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="lhpMaGv" />
+            <input type="hidden" id="lhpTenGv" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Số tín chỉ <span class="text-danger">*</span></label>
+            <input id="lhpSoTinChi" type="number" class="form-control" min="1" max="10" value="3" placeholder="VD: 3" required />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Phòng học</label>
+            <input id="lhpPhong" class="form-control" placeholder="VD: A101" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Lịch học</label>
+            <input id="lhpLich" class="form-control" placeholder="VD: Thứ 2, 7h30-9h30" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Sĩ số tối đa</label>
+            <input id="lhpSiso" type="number" class="form-control" value="50" min="1" />
+          </div>
+        </div>
+        <!-- Trạng thái mở/đóng lớp học phần -->
+        <div class="mt-3 p-3 border rounded bg-light">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="lhpDaMo" role="switch" onchange="updateDaMoLabel()" />
+            <label class="form-check-label fw-semibold" for="lhpDaMo">
+              Cho phép sinh viên đăng ký lớp học phần này
+            </label>
+            <small class="d-block text-muted mt-1">
+              <span id="lhpDaMoStatus">Mở</span> — khi đóng, sinh viên sẽ không thể đăng ký lớp này.
+            </small>
+          </div>
+        </div>
+        <div class="mt-3 p-3 border rounded bg-light" id="lhpTeacherScorePermissionWrap">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="lhpChoPhepGvNhapSuaDiem" role="switch" />
+            <label class="form-check-label fw-semibold" for="lhpChoPhepGvNhapSuaDiem">
+              Cho phép giảng viên nhập và chỉnh sửa điểm lớp này
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+        <button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i> Lưu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/layout.js"></script>
+<script src="/js/app.js"></script>
+<script>
+  renderLayout('lophocphan');
+
+  const role = localStorage.getItem('role');
+  if (role !== 'admin') document.getElementById('btnAddLhp').style.display = 'none';
+  if (role !== 'admin') document.getElementById('lhpTeacherScorePermissionWrap').style.display = 'none';
+
+  let _lhpAll = [];
+
+  async function loadLhpPage() {
+    _lhpAll = await api('/api/LopHocPhan');
+    renderLhpTable(_lhpAll);
+  }
+
+  function filterLhpTable() {
+    const q = (document.getElementById('lhpSearch').value || '').toLowerCase();
+    const hk = document.getElementById('lhpFilterHk').value;
+    const filtered = _lhpAll.filter(l =>
+      (!q || [l.Id, l.TenMon, l.MaMon, l.GiangVien?.HoTen].some(v => (v||'').toLowerCase().includes(q))) &&
+      (!hk || l.Hocky === hk)
+    );
+    renderLhpTable(filtered);
+  }
+
+  function renderLhpTable(list) {
+    document.getElementById('lhpCount').textContent = `${list.length} lớp học phần`;
+    const tbody = document.getElementById('lhpTable');
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="bi bi-journal-x"></i><div>Không có lớp học phần nào</div></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map(l => {
+      const pct = l.SiSoToiDa > 0 ? Math.round((l.SiSoHienTai||0) / l.SiSoToiDa * 100) : 0;
+      const full = l.SiSoToiDa > 0 && (l.SiSoHienTai||0) >= l.SiSoToiDa;
+      const adminActions = role === 'admin' ? `
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="editLhp('${l.Id}')" title="Sửa"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="xoaLhp('${l.Id}')" title="Xóa"><i class="bi bi-trash"></i></button>` : '';
+      return `<tr>
+        <td><code class="fw-semibold text-primary">${l.Id}</code></td>
+        <td><div class="fw-semibold">${l.TenMon}</div><small class="text-muted">${l.MaMon}${l.SoTinChi ? ` · ${l.SoTinChi} TC` : ''}</small></td>
+        <td><span class="badge bg-light text-dark border">${l.Hocky} ${l.NamHoc}</span></td>
+        <td>${l.GiangVien?.HoTen ? `<div>${l.GiangVien.HoTen}</div><small class="text-muted">${l.GiangVien.MaGV||''}</small>` : '<span class="text-muted">—</span>'}</td>
+        <td>${l.PhongHoc || '<span class="text-muted">—</span>'}</td>
+        <td>${l.LichHoc || '<span class="text-muted">—</span>'}</td>
+        <td class="text-center">
+          ${l.DaMo
+            ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-unlock me-1"></i>Mở</span>'
+            : '<span class="badge bg-danger-subtle text-danger"><i class="bi bi-lock me-1"></i>Đóng</span>'}
+        </td>
+        <td class="text-center">
+          <div class="small fw-semibold ${full ? 'text-danger' : 'text-success'}">${l.SiSoHienTai||0}/${l.SiSoToiDa}</div>
+          <div class="progress mt-1" style="height:4px;width:70px;margin:0 auto;">
+            <div class="progress-bar ${full ? 'bg-danger' : 'bg-success'}" style="width:${pct}%"></div>
+          </div>
+        </td>
+        <td class="text-end">${adminActions}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function toggleLhp(id, currentDaMo) {
+    const next = !currentDaMo;
+    const action = next ? 'Mở' : 'Đóng';
+    if (!confirm(`Bạn có chắc ${action.toLowerCase()} lớp học phần ${id} cho sinh viên đăng ký?`)) return;
+    try {
+      await api(`/api/LopHocPhan/${id}/trangthai`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daMo: next })
+      });
+      alertToast(`Đã ${action.toLowerCase()} lớp ${id}`, 'success');
+      loadLhpPage();
+    } catch (e) {
+      alertToast('Lỗi: ' + e.message, 'danger');
+    }
+  }
+
+  function updateDaMoLabel() {
+    const sw = document.getElementById('lhpDaMo');
+    const lbl = document.getElementById('lhpDaMoStatus');
+    if (!sw || !lbl) return;
+    lbl.textContent = sw.checked ? 'Mở' : 'Đóng';
+    lbl.className = sw.checked ? 'd-block text-muted mt-1' : 'd-block text-muted mt-1 text-warning';
+  }
+
+  loadLhpPage();
+
+  // Biến global để lưu danh sách khoa, môn học, giảng viên (accessible từ window)
+  window._allKhoas = [];
+  window._allMonHocs = [];
+  window._allGiangViens = [];
+  let _filteredMonHocs = [];
+  let _filteredGiangViens = [];
+
+  // Load danh sách khoa, môn học, giảng viên
+  async function loadDropdownData() {
+    try {
+      [window._allKhoas, window._allMonHocs, window._allGiangViens] = await Promise.all([
+        api('/api/Khoa'),
+        api('/api/MonHoc'),
+        api('/api/GiangVien')
+      ]);
+      renderKhoaDropdown();
+    } catch (error) {
+      console.error('Error loading dropdown data:', error);
+    }
+  }
+
+  // ======== DROPDOWN KHOA ========
+  function renderKhoaDropdown() {
+    const container = document.getElementById('lhpKhoaOptions');
+    if (!container) return;
+    container.innerHTML = window._allKhoas.map(khoa =>
+      `<a class="dropdown-item khoa-option py-2" href="#" data-id="${khoa.Id}" data-name="${khoa.TenKhoa}"
+          onclick="selectKhoa('${khoa.Id}', '${khoa.TenKhoa}'); return false;">
+        <div class="fw-semibold">${khoa.TenKhoa}</div>
+        <small class="text-muted">${khoa.Id}</small>
+      </a>`
+    ).join('');
+  }
+
+  function filterKhoaDropdown() {
+    const q = document.getElementById('lhpKhoaSearch').value.toLowerCase();
+    document.querySelectorAll('.khoa-option').forEach(opt => {
+      opt.style.display = (opt.dataset.name.toLowerCase().includes(q) || opt.dataset.id.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  }
+
+  function selectKhoa(khoaId, khoaName) {
+    document.getElementById('lhpMaKhoa').value = khoaId;
+    document.getElementById('lhpKhoaText').textContent = khoaName;
+
+    // Reset môn học và giảng viên
+    resetMonDropdown();
+    resetGvDropdown(true); // disable cho tới khi chọn môn
+
+    // Lọc môn học theo khoa
+    _filteredMonHocs = window._allMonHocs.filter(m => m.MaKhoa === khoaId);
+    const monBtn = document.getElementById('lhpMonDropdown');
+    monBtn.disabled = false;
+    renderMonDropdown();
+
+    // Lọc giảng viên theo khoa (dùng khi chọn GV sau)
+    _filteredGiangViens = window._allGiangViens.filter(gv => gv.MaKhoa === khoaId);
+
+    bootstrap.Dropdown.getInstance(document.getElementById('lhpKhoaDropdown'))?.hide();
+  }
+
+  // ======== DROPDOWN MÔN HỌC ========
+  function renderMonDropdown() {
+    const container = document.getElementById('lhpMonOptions');
+    if (!container) return;
+    if (!_filteredMonHocs.length) {
+      container.innerHTML = '<div class="dropdown-item-text text-muted fst-italic">Không có môn học nào trong khoa này</div>';
+      return;
+    }
+    container.innerHTML = _filteredMonHocs.map(m =>
+      `<a class="dropdown-item mon-option py-2" href="#" data-id="${m.Id}" data-name="${m.TenMon}"
+          onclick="selectMon('${m.Id}', '${m.TenMon}'); return false;">
+        <div class="fw-semibold">${m.TenMon}</div>
+        <small class="text-muted">${m.Id} · ${m.SoTinChi} tín chỉ</small>
+      </a>`
+    ).join('');
+  }
+
+  function filterMonDropdown() {
+    const q = document.getElementById('lhpMonSearch').value.toLowerCase();
+    document.querySelectorAll('.mon-option').forEach(opt => {
+      opt.style.display = (opt.dataset.name.toLowerCase().includes(q) || opt.dataset.id.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  }
+
+  function selectMon(maMonId, tenMon) {
+    document.getElementById('lhpMaMon').value = maMonId;
+    document.getElementById('lhpTenMon').value = tenMon;
+    document.getElementById('lhpMonText').textContent = `${tenMon} (${maMonId})`;
+
+    // Điền số tín chỉ mặc định theo môn học đã chọn
+    const mon = (window._allMonHocs || []).find(m => m.Id === maMonId);
+    if (mon && mon.SoTinChi) {
+      const tcInput = document.getElementById('lhpSoTinChi');
+      if (tcInput) tcInput.value = mon.SoTinChi;
+    }
+
+    // Enable dropdown giảng viên
+    const gvBtn = document.getElementById('lhpGvDropdown');
+    gvBtn.disabled = false;
+    document.getElementById('lhpGvText').textContent = 'Chọn giảng viên...';
+    renderGvDropdown();
+
+    bootstrap.Dropdown.getInstance(document.getElementById('lhpMonDropdown'))?.hide();
+  }
+
+  function resetMonDropdown() {
+    document.getElementById('lhpMaMon').value = '';
+    document.getElementById('lhpTenMon').value = '';
+    document.getElementById('lhpMonText').textContent = 'Chọn môn học...';
+    document.getElementById('lhpMonDropdown').disabled = true;
+    document.getElementById('lhpMonSearch').value = '';
+    document.getElementById('lhpMonOptions').innerHTML = '';
+    _filteredMonHocs = [];
+  }
+
+  // ======== DROPDOWN GIẢNG VIÊN ========
+  function renderGvDropdown() {
+    const container = document.getElementById('lhpGvOptions');
+    if (!container) return;
+    if (!_filteredGiangViens.length) {
+      container.innerHTML = '<div class="dropdown-item-text text-muted fst-italic">Không có giảng viên nào trong khoa này</div>';
+      return;
+    }
+    container.innerHTML = _filteredGiangViens.map(gv =>
+      `<a class="dropdown-item gv-option py-2" href="#" data-id="${gv.Id}" data-name="${gv.HoTen}"
+          onclick="selectGiangVien('${gv.Id}', '${gv.HoTen}'); return false;">
+        <div class="fw-semibold">${gv.HoTen}</div>
+        <small class="text-muted">${gv.Id}${gv.Email ? ' · ' + gv.Email : ''}</small>
+      </a>`
+    ).join('');
+  }
+
+  function filterGvDropdown() {
+    const q = document.getElementById('lhpGvSearch').value.toLowerCase();
+    document.querySelectorAll('.gv-option').forEach(opt => {
+      opt.style.display = (opt.dataset.name.toLowerCase().includes(q) || opt.dataset.id.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  }
+
+  function selectGiangVien(gvId, gvName) {
+    document.getElementById('lhpMaGv').value = gvId;
+    document.getElementById('lhpTenGv').value = gvName;
+    document.getElementById('lhpGvText').textContent = `${gvName} (${gvId})`;
+    bootstrap.Dropdown.getInstance(document.getElementById('lhpGvDropdown'))?.hide();
+  }
+
+  function resetGvDropdown(keepDisabled = false) {
+    document.getElementById('lhpMaGv').value = '';
+    document.getElementById('lhpTenGv').value = '';
+    document.getElementById('lhpGvText').textContent = keepDisabled ? 'Vui lòng chọn khoa trước' : 'Chọn giảng viên...';
+    document.getElementById('lhpGvDropdown').disabled = keepDisabled;
+    document.getElementById('lhpGvSearch').value = '';
+    document.getElementById('lhpGvOptions').innerHTML = '';
+    _filteredGiangViens = [];
+  }
+
+  // ======== HELPER: set dropdown về trạng thái đã chọn khi edit ========
+  window.setKhoaDisplay = function(khoaId) {
+    const khoa = window._allKhoas.find(k => k.Id === khoaId);
+    if (!khoa) return;
+    document.getElementById('lhpMaKhoa').value = khoaId;
+    document.getElementById('lhpKhoaText').textContent = khoa.TenKhoa;
+    _filteredMonHocs = window._allMonHocs.filter(m => m.MaKhoa === khoaId);
+    _filteredGiangViens = window._allGiangViens.filter(gv => gv.MaKhoa === khoaId);
+    document.getElementById('lhpMonDropdown').disabled = false;
+    document.getElementById('lhpGvDropdown').disabled = false;
+    renderMonDropdown();
+    renderGvDropdown();
+  }
+
+  window.setMonDisplay = function(maMon, tenMon) {
+    document.getElementById('lhpMaMon').value = maMon;
+    document.getElementById('lhpTenMon').value = tenMon;
+    document.getElementById('lhpMonText').textContent = `${tenMon} (${maMon})`;
+  }
+
+  window.setGvDisplay = function(maGv, tenGv) {
+    document.getElementById('lhpMaGv').value = maGv;
+    document.getElementById('lhpTenGv').value = tenGv;
+    document.getElementById('lhpGvText').textContent = `${tenGv} (${maGv})`;
+  }
+
+  // Reset toàn bộ modal
+  function resetLhpModal() {
+    resetMonDropdown();
+    resetGvDropdown(true);
+    document.getElementById('lhpMaKhoa').value = '';
+    document.getElementById('lhpKhoaText').textContent = 'Chọn khoa...';
+    document.getElementById('lhpKhoaSearch').value = '';
+    document.querySelectorAll('.khoa-option').forEach(opt => opt.style.display = '');
+  }
+
+  // Load dữ liệu khi trang được tải
+  loadDropdownData();
+
+  // Thêm event listener để reset modal khi đóng
+  document.getElementById('modalLhp').addEventListener('hidden.bs.modal', resetLhpModal);
+</script>
+</body>
+</html>

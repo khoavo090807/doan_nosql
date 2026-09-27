@@ -1,0 +1,180 @@
+[{
+  "_id": "GV001",
+  "HoTen": "Nguyễn Văn A",
+  "HocVi": "PGS.TS",
+  "Email": "anv@huit.edu.vn",
+  "DienThoai": "0901234501",
+  "MaKhoa": "K01",
+  "BoMon": "Kỹ thuật Phần mềm"
+},
+{
+  "_id": "GV002",
+  "HoTen": "Trần Thị Cúc",
+  "HocVi": "ThS",
+  "Email": "cuctt@huit.edu.vn",
+  "DienThoai": "0901234502",
+  "MaKhoa": "K01",
+  "BoMon": "Hệ thống Thông tin"
+},
+{
+  "_id": "GV003",
+  "HoTen": "Lê Hoàng Dũng",
+  "HocVi": "TS",
+  "Email": "dunglh@huit.edu.vn",
+  "DienThoai": "0901234503",
+  "MaKhoa": "K01",
+  "BoMon": "Mạng máy tính & An ninh mạng"
+},
+{
+  "_id": "GV004",
+  "HoTen": "Phạm Quốc Hải",
+  "HocVi": "TS",
+  "Email": "haipq@huit.edu.vn",
+  "DienThoai": "0901234504",
+  "MaKhoa": "K01",
+  "BoMon": "Khoa học Dữ liệu"
+},
+{
+  "_id": "GV005",
+  "HoTen": "Vũ Tuyết Mai",
+  "HocVi": "ThS",
+  "Email": "maivt@huit.edu.vn",
+  "DienThoai": "0901234505",
+  "MaKhoa": "K01",
+  "BoMon": "Kỹ thuật Phần mềm"
+},
+{
+  "_id": "GV006",
+  "HoTen": "Trần Văn B",
+  "HocVi": "TS",
+  "Email": "btv@huit.edu.vn",
+  "DienThoai": "0901234506",
+  "MaKhoa": "K02",
+  "BoMon": "Tự động hóa"
+},
+{
+  "_id": "GV007",
+  "HoTen": "Ngô Quang Huy",
+  "HocVi": "ThS",
+  "Email": "huynq@huit.edu.vn",
+  "DienThoai": "0901234507",
+  "MaKhoa": "K02",
+  "BoMon": "Điện tử Viễn thông"
+},
+{
+  "_id": "GV008",
+  "HoTen": "Đặng Hoàng Long",
+  "HocVi": "TS",
+  "Email": "longdh@huit.edu.vn",
+  "DienThoai": "0901234508",
+  "MaKhoa": "K02",
+  "BoMon": "Hệ thống Điện"
+},
+{
+  "_id": "GV009",
+  "HoTen": "Bùi Thị Phương",
+  "HocVi": "ThS",
+  "Email": "phuongbt@huit.edu.vn",
+  "DienThoai": "0901234509",
+  "MaKhoa": "K02",
+  "BoMon": "Tự động hóa"
+},
+{
+  "_id": "GV010",
+  "HoTen": "Lê Thị C",
+  "HocVi": "TS",
+  "Email": "cle@huit.edu.vn",
+  "DienThoai": "0901234510",
+  "MaKhoa": "K03",
+  "BoMon": "Quản trị Doanh nghiệp"
+},
+{
+  "_id": "GV011",
+  "HoTen": "Nguyễn Thanh Sơn",
+  "HocVi": "ThS",
+  "Email": "sonnt@huit.edu.vn",
+  "DienThoai": "0901234511",
+  "MaKhoa": "K03",
+  "BoMon": "Marketing Digital"
+},
+{
+  "_id": "GV012",
+  "HoTen": "Dương Minh Châu",
+  "HocVi": "TS",
+  "Email": "chaudm@huit.edu.vn",
+  "DienThoai": "0901234512",
+  "MaKhoa": "K03",
+  "BoMon": "Logistics & Chuỗi cung ứng"
+},
+{
+  "_id": "GV013",
+  "HoTen": "Hoàng Bích Ngọc",
+  "HocVi": "ThS",
+  "Email": "ngochan@huit.edu.vn",
+  "DienThoai": "0901234513",
+  "MaKhoa": "K03",
+  "BoMon": "Quản trị Doanh nghiệp"
+},
+{
+  "_id": "GV014",
+  "HoTen": "Phạm Hoàng D",
+  "HocVi": "ThS",
+  "Email": "dph@huit.edu.vn",
+  "DienThoai": "0901234514",
+  "MaKhoa": "K04",
+  "BoMon": "Tiếng Anh Thương mại"
+},
+{
+  "_id": "GV015",
+  "HoTen": "Nguyễn Kim Ngân",
+  "HocVi": "ThS",
+  "Email": "ngannk@huit.edu.vn",
+  "DienThoai": "0901234515",
+  "MaKhoa": "K04",
+  "BoMon": "Tiếng Trung Quốc"
+},
+{
+  "_id": "GV016",
+  "HoTen": "Lê Anh Tuấn",
+  "HocVi": "ThS",
+  "Email": "tuanla@huit.edu.vn",
+  "DienThoai": "0901234516",
+  "MaKhoa": "K04",
+  "BoMon": "Tiếng Nhật"
+},
+{
+  "_id": "GV017",
+  "HoTen": "Đỗ Minh E",
+  "HocVi": "PGS.TS",
+  "Email": "edm@huit.edu.vn",
+  "DienThoai": "0901234517",
+  "MaKhoa": "K05",
+  "BoMon": "Công nghệ Chế biến"
+},
+{
+  "_id": "GV018",
+  "HoTen": "Trịnh Thị Khánh",
+  "HocVi": "TS",
+  "Email": "khanhtt@huit.edu.vn",
+  "DienThoai": "0901234518",
+  "MaKhoa": "K05",
+  "BoMon": "Quản lý Chất lượng & An toàn Thực phẩm"
+},
+{
+  "_id": "GV019",
+  "HoTen": "Võ Thành Trung",
+  "HocVi": "ThS",
+  "Email": "trungvt@huit.edu.vn",
+  "DienThoai": "0901234519",
+  "MaKhoa": "K05",
+  "BoMon": "Công nghệ Chế biến"
+},
+{
+  "_id": "GV020",
+  "HoTen": "Lâm Nhất Huy",
+  "HocVi": "ThS",
+  "Email": "huyln@huit.edu.vn",
+  "DienThoai": "0901234520",
+  "MaKhoa": "K01",
+  "BoMon": "Hệ thống Thông tin"
+}]

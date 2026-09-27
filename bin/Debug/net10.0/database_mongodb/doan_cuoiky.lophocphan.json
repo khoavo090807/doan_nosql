@@ -1,0 +1,434 @@
+[{
+  "_id": "LHP_MH001_HK1_2026",
+  "MaMon": "MH001",
+  "TenMon": "Cơ sở dữ liệu NoSQL",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV001",
+    "HoTen": "Nguyễn Văn A"
+  },
+  "PhongHoc": "A.302",
+  "LichHoc": "Thứ 2 (Tiết 1-4)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH001_HK2_2026",
+  "MaMon": "MH001",
+  "TenMon": "Cơ sở dữ liệu NoSQL",
+  "Hocky": "HK2",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV002",
+    "HoTen": "Trần Thị Cúc"
+  },
+  "PhongHoc": "Lab.01",
+  "LichHoc": "Thứ 3 (Tiết 5-8)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH002_HK1_2026",
+  "MaMon": "MH002",
+  "TenMon": "Lập trình Java Nâng cao",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV005",
+    "HoTen": "Vũ Tuyết Mai"
+  },
+  "PhongHoc": "Lab.05",
+  "LichHoc": "Thứ 4 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH003_HK1_2026",
+  "MaMon": "MH003",
+  "TenMon": "Nhập môn Điện toán Mây",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV003",
+    "HoTen": "Lê Hoàng Dũng"
+  },
+  "PhongHoc": "Lab.03",
+  "LichHoc": "Thứ 5 (Tiết 5-8)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH011_HK1_2026",
+  "MaMon": "MH011",
+  "TenMon": "Cấu trúc dữ liệu và Giải thuật",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV004",
+    "HoTen": "Phạm Quốc Hải"
+  },
+  "PhongHoc": "A.101",
+  "LichHoc": "Thứ 2 (Tiết 5-8)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH012_HK1_2026",
+  "MaMon": "MH012",
+  "TenMon": "Mạng máy tính căn bản",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV003",
+    "HoTen": "Lê Hoàng Dũng"
+  },
+  "PhongHoc": "Lab.02",
+  "LichHoc": "Thứ 3 (Tiết 1-4)",
+  "SiSoToiDa": 45
+},
+{
+  "_id": "LHP_MH013_HK1_2026",
+  "MaMon": "MH013",
+  "TenMon": "Phân tích và Thiết kế Hệ thống",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV020",
+    "HoTen": "Lâm Nhất Huy"
+  },
+  "PhongHoc": "A.204",
+  "LichHoc": "Thứ 6 (Tiết 5-8)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH004_HK1_2026",
+  "MaMon": "MH004",
+  "TenMon": "Mạch Điện Tử",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV006",
+    "HoTen": "Trần Văn B"
+  },
+  "PhongHoc": "B.201",
+  "LichHoc": "Thứ 2 (Tiết 5-8)",
+  "SiSoToiDa": 45
+},
+{
+  "_id": "LHP_MH005_HK1_2026",
+  "MaMon": "MH005",
+  "TenMon": "Lập Trình Vi Điều Khiển",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV007",
+    "HoTen": "Ngô Quang Huy"
+  },
+  "PhongHoc": "B.Lab02",
+  "LichHoc": "Thứ 6 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH010_HK1_2026",
+  "MaMon": "MH010",
+  "TenMon": "Toán Cao Cấp 1",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV008",
+    "HoTen": "Đặng Hoàng Long"
+  },
+  "PhongHoc": "B.102",
+  "LichHoc": "Thứ 3 (Tiết 1-4)",
+  "SiSoToiDa": 60
+},
+{
+  "_id": "LHP_MH014_HK1_2026",
+  "MaMon": "MH014",
+  "TenMon": "Kỹ thuật Điện tử số",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV007",
+    "HoTen": "Ngô Quang Huy"
+  },
+  "PhongHoc": "B.Lab01",
+  "LichHoc": "Thứ 4 (Tiết 5-8)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH015_HK1_2026",
+  "MaMon": "MH015",
+  "TenMon": "Hệ thống Cảm biến",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV009",
+    "HoTen": "Bùi Thị Phương"
+  },
+  "PhongHoc": "B.303",
+  "LichHoc": "Thứ 5 (Tiết 1-4)",
+  "SiSoToiDa": 45
+},
+{
+  "_id": "LHP_MH016_HK1_2026",
+  "MaMon": "MH016",
+  "TenMon": "Tự động hóa Công nghiệp",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV006",
+    "HoTen": "Trần Văn B"
+  },
+  "PhongHoc": "B.Lab03",
+  "LichHoc": "Thứ 7 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH006_HK1_2026",
+  "MaMon": "MH006",
+  "TenMon": "Quản Trị Học",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV010",
+    "HoTen": "Lê Thị C"
+  },
+  "PhongHoc": "C.101",
+  "LichHoc": "Thứ 3 (Tiết 1-4)",
+  "SiSoToiDa": 60
+},
+{
+  "_id": "LHP_MH007_HK1_2026",
+  "MaMon": "MH007",
+  "TenMon": "Marketing Căn Bản",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV011",
+    "HoTen": "Nguyễn Thanh Sơn"
+  },
+  "PhongHoc": "C.102",
+  "LichHoc": "Thứ 5 (Tiết 1-4)",
+  "SiSoToiDa": 60
+},
+{
+  "_id": "LHP_MH017_HK1_2026",
+  "MaMon": "MH017",
+  "TenMon": "Quản trị Tài chính",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV013",
+    "HoTen": "Hoàng Bích Ngọc"
+  },
+  "PhongHoc": "C.201",
+  "LichHoc": "Thứ 2 (Tiết 5-8)",
+  "SiSoToiDa": 55
+},
+{
+  "_id": "LHP_MH018_HK1_2026",
+  "MaMon": "MH018",
+  "TenMon": "Quản trị Nhân sự",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV010",
+    "HoTen": "Lê Thị C"
+  },
+  "PhongHoc": "C.202",
+  "LichHoc": "Thứ 4 (Tiết 1-4)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH019_HK1_2026",
+  "MaMon": "MH019",
+  "TenMon": "Quản trị Chuỗi Cung ứng",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV012",
+    "HoTen": "Dương Minh Châu"
+  },
+  "PhongHoc": "C.301",
+  "LichHoc": "Thứ 6 (Tiết 5-8)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH020_HK1_2026",
+  "MaMon": "MH020",
+  "TenMon": "Kinh tế Vĩ mô",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV013",
+    "HoTen": "Hoàng Bích Ngọc"
+  },
+  "PhongHoc": "C.105",
+  "LichHoc": "Thứ 7 (Tiết 5-8)",
+  "SiSoToiDa": 60
+},
+{
+  "_id": "LHP_MH008_HK1_2026",
+  "MaMon": "MH008",
+  "TenMon": "Tiếng Anh Giao Tiếp 1",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV014",
+    "HoTen": "Phạm Hoàng D"
+  },
+  "PhongHoc": "D.401",
+  "LichHoc": "Thứ 7 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH021_HK1_2026",
+  "MaMon": "MH021",
+  "TenMon": "Tiếng Anh Thương mại 1",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV014",
+    "HoTen": "Phạm Hoàng D"
+  },
+  "PhongHoc": "D.402",
+  "LichHoc": "Thứ 2 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH022_HK1_2026",
+  "MaMon": "MH022",
+  "TenMon": "Kỹ năng Biên Phiên dịch",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV014",
+    "HoTen": "Phạm Hoàng D"
+  },
+  "PhongHoc": "D.403",
+  "LichHoc": "Thứ 3 (Tiết 5-8)",
+  "SiSoToiDa": 35
+},
+{
+  "_id": "LHP_MH023_HK1_2026",
+  "MaMon": "MH023",
+  "TenMon": "Tiếng Trung Cơ bản 1",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV015",
+    "HoTen": "Nguyễn Kim Ngân"
+  },
+  "PhongHoc": "D.201",
+  "LichHoc": "Thứ 4 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH024_HK1_2026",
+  "MaMon": "MH024",
+  "TenMon": "Tiếng Nhật Cơ bản 1",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV016",
+    "HoTen": "Lê Anh Tuấn"
+  },
+  "PhongHoc": "D.202",
+  "LichHoc": "Thứ 5 (Tiết 5-8)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH025_HK1_2026",
+  "MaMon": "MH025",
+  "TenMon": "Giao thoa Văn hóa Doanh nghiệp",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV016",
+    "HoTen": "Lê Anh Tuấn"
+  },
+  "PhongHoc": "D.101",
+  "LichHoc": "Thứ 6 (Tiết 1-4)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH009_HK1_2026",
+  "MaMon": "MH009",
+  "TenMon": "Hoa Học Thực Phẩm",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV017",
+    "HoTen": "Đỗ Minh E"
+  },
+  "PhongHoc": "E.105",
+  "LichHoc": "Thứ 4 (Tiết 5-8)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH026_HK1_2026",
+  "MaMon": "MH026",
+  "TenMon": "Microbiology Thực phẩm",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV018",
+    "HoTen": "Trịnh Thị Khánh"
+  },
+  "PhongHoc": "E.Lab01",
+  "LichHoc": "Thứ 2 (Tiết 1-4)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH027_HK1_2026",
+  "MaMon": "MH027",
+  "TenMon": "Công nghệ Chế biến Thịt & Sữa",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV019",
+    "HoTen": "Võ Thành Trung"
+  },
+  "PhongHoc": "E.Lab02",
+  "LichHoc": "Thứ 3 (Tiết 5-8)",
+  "SiSoToiDa": 40
+},
+{
+  "_id": "LHP_MH028_HK1_2026",
+  "MaMon": "MH028",
+  "TenMon": "An toàn và Tảo Đảm Chất lượng Thực phẩm",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV018",
+    "HoTen": "Trịnh Thị Khánh"
+  },
+  "PhongHoc": "E.201",
+  "LichHoc": "Thứ 5 (Tiết 1-4)",
+  "SiSoToiDa": 50
+},
+{
+  "_id": "LHP_MH029_HK1_2026",
+  "MaMon": "MH029",
+  "TenMon": "Đánh giá Cảm quan Thực phẩm",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV019",
+    "HoTen": "Võ Thành Trung"
+  },
+  "PhongHoc": "E.Lab03",
+  "LichHoc": "Thứ 6 (Tiết 5-8)",
+  "SiSoToiDa": 35
+},
+{
+  "_id": "LHP_MH030_HK1_2026",
+  "MaMon": "MH030",
+  "TenMon": "Công nghệ Bao bì Thực phẩm",
+  "Hocky": "HK1",
+  "NamHoc": "2026-2027",
+  "GiangVien": {
+    "MaGV": "GV017",
+    "HoTen": "Đỗ Minh E"
+  },
+  "PhongHoc": "E.102",
+  "LichHoc": "Thứ 7 (Tiết 1-4)",
+  "SiSoToiDa": 50
+}]
