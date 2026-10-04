@@ -47,7 +47,8 @@ public class SinhVienController : ControllerBase
     public async Task<ActionResult<List<SinhVien>>> Get([FromQuery] string? lop, [FromQuery] string? q)
     {
         var matchStage = new BsonDocument("$match", new BsonDocument());
-        
+        List<string>? maLhpList = null;
+
         // RBAC: Giáo viên chỉ xem sinh viên trong các lớp họ dạy
         if (CurrentRole == "giaovien")
         {
@@ -58,9 +59,9 @@ public class SinhVienController : ControllerBase
             var lopHocPhans = await _mongoDbService.LopHocPhans
                 .Find(x => x.GiangVien.MaGV == CurrentRefId)
                 .ToListAsync();
-            
-            var maLhpList = lopHocPhans.Select(l => l.Id).ToList();
-            
+
+            maLhpList = lopHocPhans.Select(l => l.Id).ToList();
+
             if (!maLhpList.Any())
                 return Ok(new List<SinhVien>()); // Giáo viên không dạy lớp nào
 
@@ -80,9 +81,20 @@ public class SinhVienController : ControllerBase
             };
         }
 
-        var pipeline = new[]
+        var pipeline = new List<BsonDocument> { matchStage };
+
+        if (CurrentRole == "giaovien" && maLhpList != null)
         {
-            matchStage,
+            pipeline.Add(new BsonDocument("$addFields", new BsonDocument("BangDiem", new BsonDocument("$filter", new BsonDocument
+            {
+                { "input", "$BangDiem" },
+                { "as", "b" },
+                { "cond", new BsonDocument("$in", new BsonArray { "$$b.MaLHP", new BsonArray(maLhpList) }) }
+            }))));
+        }
+
+        pipeline.AddRange(new[]
+        {
             new BsonDocument("$lookup", new BsonDocument
             {
                 { "from", "khoa" },
@@ -98,7 +110,7 @@ public class SinhVienController : ControllerBase
             new BsonDocument("$addFields", new BsonDocument("TenKhoa", "$KhoaInfo.TenKhoa")),
             new BsonDocument("$project", new BsonDocument("KhoaInfo", 0)),
             new BsonDocument("$sort", new BsonDocument("_id", 1))
-        };
+        });
 
         var result = await _mongoDbService.SinhViens.Aggregate<SinhVien>(pipeline).ToListAsync();
         return result;
@@ -111,6 +123,8 @@ public class SinhVienController : ControllerBase
         if (CurrentRole == "sinhvien" && CurrentRefId != id)
             return Forbid();
 
+        List<string>? maLhpList = null;
+
         // Giáo viên chỉ xem được sinh viên trong lớp mình dạy
         if (CurrentRole == "giaovien")
         {
@@ -120,20 +134,34 @@ public class SinhVienController : ControllerBase
             var lopHocPhans = await _mongoDbService.LopHocPhans
                 .Find(x => x.GiangVien.MaGV == CurrentRefId)
                 .ToListAsync();
-            
-            var maLhpList = lopHocPhans.Select(l => l.Id).ToList();
-            
+
+            maLhpList = lopHocPhans.Select(l => l.Id).ToList();
+
             var sv = await _mongoDbService.SinhViens.Find(x => x.Id == id).FirstOrDefaultAsync();
             if (sv == null) return NotFound();
-            
+
             // Kiểm tra sinh viên có môn nào trong lớp giáo viên dạy không
             if (!sv.BangDiem.Any(b => maLhpList.Contains(b.MaLHP)))
                 return Forbid();
         }
 
-        var pipeline = new[]
+        var pipeline = new List<BsonDocument>
         {
-            new BsonDocument("$match", new BsonDocument("_id", id)),
+            new BsonDocument("$match", new BsonDocument("_id", id))
+        };
+
+        if (CurrentRole == "giaovien" && maLhpList != null)
+        {
+            pipeline.Add(new BsonDocument("$addFields", new BsonDocument("BangDiem", new BsonDocument("$filter", new BsonDocument
+            {
+                { "input", "$BangDiem" },
+                { "as", "b" },
+                { "cond", new BsonDocument("$in", new BsonArray { "$$b.MaLHP", new BsonArray(maLhpList) }) }
+            }))));
+        }
+
+        pipeline.AddRange(new[]
+        {
             new BsonDocument("$lookup", new BsonDocument
             {
                 { "from", "khoa" },
@@ -148,7 +176,7 @@ public class SinhVienController : ControllerBase
             }),
             new BsonDocument("$addFields", new BsonDocument("TenKhoa", "$KhoaInfo.TenKhoa")),
             new BsonDocument("$project", new BsonDocument("KhoaInfo", 0))
-        };
+        });
 
         var svResult = await _mongoDbService.SinhViens.Aggregate<SinhVien>(pipeline).FirstOrDefaultAsync();
         if (svResult == null) return NotFound();
@@ -267,6 +295,8 @@ public class SinhVienController : ControllerBase
         if (CurrentRole == "sinhvien" && CurrentRefId != id)
             return Forbid();
 
+        List<string>? maLhpList = null;
+
         // Giáo viên chỉ xem được GPA của sinh viên trong lớp mình dạy
         if (CurrentRole == "giaovien")
         {
@@ -276,21 +306,30 @@ public class SinhVienController : ControllerBase
             var lopHocPhans = await _mongoDbService.LopHocPhans
                 .Find(x => x.GiangVien.MaGV == CurrentRefId)
                 .ToListAsync();
-            
-            var maLhpList = lopHocPhans.Select(l => l.Id).ToList();
-            
+
+            maLhpList = lopHocPhans.Select(l => l.Id).ToList();
+
             var sv = await _mongoDbService.SinhViens.Find(x => x.Id == id).FirstOrDefaultAsync();
             if (sv == null) return NotFound();
-            
+
             // Kiểm tra sinh viên có môn nào trong lớp giáo viên dạy không
             if (!sv.BangDiem.Any(b => maLhpList.Contains(b.MaLHP)))
                 return Forbid("Bạn không có quyền xem điểm của sinh viên này.");
         }
 
-        var pipeline = new BsonDocument[]
+        var pipeline = new List<BsonDocument>
         {
             new BsonDocument("$match", new BsonDocument("_id", id)),
-            new BsonDocument("$unwind", "$BangDiem"),
+            new BsonDocument("$unwind", "$BangDiem")
+        };
+
+        if (CurrentRole == "giaovien" && maLhpList != null)
+        {
+            pipeline.Add(new BsonDocument("$match", new BsonDocument("BangDiem.MaLHP", new BsonDocument("$in", new BsonArray(maLhpList)))));
+        }
+
+        pipeline.AddRange(new[]
+        {
             new BsonDocument("$group", new BsonDocument
             {
                 { "_id", "$_id" },
@@ -301,12 +340,12 @@ public class SinhVienController : ControllerBase
             new BsonDocument("$project", new BsonDocument
             {
                 { "HoTen", 1 },
-                { "GPA", new BsonDocument("$cond", new BsonArray 
-                    { 
-                        new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 }), 
-                        0, 
-                        new BsonDocument("$divide", new BsonArray { "$TongDiemHeSo", "$TongTinChi" }) 
-                    }) 
+                { "GPA", new BsonDocument("$cond", new BsonArray
+                    {
+                        new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 }),
+                        0,
+                        new BsonDocument("$divide", new BsonArray { "$TongDiemHeSo", "$TongTinChi" })
+                    })
                 }
             }),
             new BsonDocument("$project", new BsonDocument
@@ -323,10 +362,10 @@ public class SinhVienController : ControllerBase
                     .Add("default", "Yếu"))
                 }
             })
-        };
+        });
 
         var result = await _mongoDbService.SinhViens.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
-        
+
         if (result == null) return NotFound("Không thể tính điểm hoặc không có dữ liệu bảng điểm");
 
         result["_id"] = result["_id"].ToString();

@@ -1,9 +1,11 @@
 using doan_cuoiky_nosql.Models;
 using doan_cuoiky_nosql.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +19,7 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSingleton<MongoDbService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 // JWT Authentication
@@ -37,6 +40,48 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.Zero
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var username = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                            ?? context.Principal?.Identity?.Name;
+                var tokenRole = context.Principal?.FindFirstValue(ClaimTypes.Role);
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    context.Fail("Tài khoản bị vô hiệu hóa");
+                    return;
+                }
+
+                var cache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+                var cacheKey = $"user_active_{username}";
+
+                if (!cache.TryGetValue(cacheKey, out TaiKhoan? dbUser))
+                {
+                    var db = context.HttpContext.RequestServices.GetRequiredService<MongoDbService>();
+                    dbUser = await db.TaiKhoans.Find(x => x.Id == username).FirstOrDefaultAsync();
+
+                    if (dbUser != null)
+                    {
+                        cache.Set(cacheKey, dbUser, TimeSpan.FromSeconds(30));
+                    }
+                }
+
+                if (dbUser == null || !dbUser.IsActive)
+                {
+                    context.Fail("Tài khoản bị vô hiệu hóa");
+                    return;
+                }
+
+                if (!string.Equals(dbUser.Role, tokenRole, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Fail("Tài khoản bị vô hiệu hóa");
+                    return;
+                }
+            }
         };
     });
 

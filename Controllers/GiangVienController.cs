@@ -49,25 +49,37 @@ public class GiangVienController : ControllerBase
     public async Task<ActionResult<GiangVien>> GetById(string id)
     {
         var currentRole = User.FindFirstValue(ClaimTypes.Role);
+        var currentRefId = User.FindFirstValue("RefId");
 
-        // RBAC: Sinh viên và giáo viên chỉ xem được giảng viên cùng khoa
-        if (currentRole == "sinhvien" || currentRole == "giaovien")
+        var targetGv = await _db.GiangViens.Find(x => x.Id == id).FirstOrDefaultAsync();
+        if (targetGv == null) return NotFound("Không tìm thấy thông tin giảng viên.");
+
+        // RBAC: Giáo viên và sinh viên chỉ xem được giảng viên cùng khoa
+        if (currentRole == "giaovien")
         {
-            var currentRefId = User.FindFirstValue("RefId");
             if (string.IsNullOrWhiteSpace(currentRefId))
-                return BadRequest("Không xác định được mã.");
+                return BadRequest("Không xác định được mã giảng viên.");
 
-            var userGv = await _db.GiangViens.Find(x => x.Id == currentRefId).FirstOrDefaultAsync();
-            if (userGv == null)
-                return NotFound("Không tìm thấy thông tin người dùng.");
+            var currentGv = await _db.GiangViens.Find(x => x.Id == currentRefId).FirstOrDefaultAsync();
+            if (currentGv == null)
+                return NotFound("Không tìm thấy thông tin giảng viên đang đăng nhập.");
 
-            // Admin có thể xem tất cả, giáo viên chỉ xem cùng khoa
-            if (currentRole == "giaovien" && userGv.MaKhoa != id)
-                return Forbid("Bạn không có quyền xem thông tin giảng viên này.");
+            if (!string.Equals(currentGv.MaKhoa, targetGv.MaKhoa, StringComparison.OrdinalIgnoreCase))
+                return Forbid("Bạn không có quyền xem thông tin giảng viên ngoài khoa.");
+        }
+        else if (currentRole == "sinhvien")
+        {
+            if (string.IsNullOrWhiteSpace(currentRefId))
+                return BadRequest("Không xác định được mã sinh viên.");
+
+            var currentSv = await _db.SinhViens.Find(x => x.Id == currentRefId).FirstOrDefaultAsync();
+            if (currentSv == null)
+                return NotFound("Không tìm thấy thông tin sinh viên đang đăng nhập.");
+
+            if (!string.Equals(currentSv.MaKhoa, targetGv.MaKhoa, StringComparison.OrdinalIgnoreCase))
+                return Forbid("Bạn không có quyền xem thông tin giảng viên ngoài khoa.");
         }
 
-        var gv = await _db.GiangViens.Find(x => x.Id == id).FirstOrDefaultAsync();
-        if (gv == null) return NotFound();
-        return gv;
+        return targetGv;
     }
 }

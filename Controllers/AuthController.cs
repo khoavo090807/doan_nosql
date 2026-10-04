@@ -84,6 +84,38 @@ public class AuthController : ControllerBase
         });
     }
 
+    public record DoiMatKhauRequest(string MatKhauCu, string MatKhauMoi);
+
+    [Authorize]
+    [HttpPost("doi-mat-khau")]
+    public async Task<IActionResult> DoiMatKhau([FromBody] DoiMatKhauRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.MatKhauCu) || string.IsNullOrWhiteSpace(req.MatKhauMoi))
+            return BadRequest("Vui lòng nhập đầy đủ mật khẩu cũ và mật khẩu mới.");
+
+        if (req.MatKhauMoi.Trim().Length < 6)
+            return BadRequest("Mật khẩu mới phải có tối thiểu 6 ký tự.");
+
+        var username = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized("Không xác định được tài khoản.");
+
+        var user = await _db.TaiKhoans.Find(x => x.Id == username).FirstOrDefaultAsync();
+        if (user == null)
+            return NotFound("Không tìm thấy thông tin tài khoản.");
+
+        if (!BCrypt.Net.BCrypt.Verify(req.MatKhauCu, user.PasswordHash))
+            return BadRequest("Mật khẩu cũ không chính xác.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.MatKhauMoi.Trim());
+        await _db.TaiKhoans.ReplaceOneAsync(x => x.Id == username, user);
+
+        var cache = HttpContext.RequestServices.GetService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        cache?.Remove($"user_active_{username}");
+
+        return Ok(new { Message = "Đổi mật khẩu thành công." });
+    }
+
     private string GenerateJwtToken(TaiKhoan user)
     {
         var jwtKey = _config["Jwt:Key"]!;

@@ -10,6 +10,13 @@ const api = (path, opts = {}) => {
       window.location.href = '/login.html';
       throw new Error('Phiên đăng nhập đã hết hạn.');
     }
+    if (r.status === 403) {
+      if (typeof toast === 'function') {
+        toast('Bạn không có quyền thực hiện thao tác này', 'danger');
+      }
+      const t = await r.text();
+      throw new Error(t || 'Bạn không có quyền thực hiện thao tác này');
+    }
     if (!r.ok) {
       const t = await r.text();
       throw new Error(t || r.statusText);

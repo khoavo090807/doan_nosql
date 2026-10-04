@@ -29,7 +29,7 @@ function renderLayout(activePage) {
     }
   }
   if (role === 'giaovien') {
-    const teacherDeniedPages = ['taikhoan', 'importexport', 'dangky', 'sinhvien', 'lophocphan'];
+    const teacherDeniedPages = ['taikhoan', 'importexport', 'dangky', 'sinhvien', 'lophocphan', 'monhoc'];
     if (teacherDeniedPages.includes(activePage)) {
       window.location.href = '/';
       return;
@@ -42,6 +42,7 @@ function renderLayout(activePage) {
       { id: 'dashboard',    href: '/',                icon: 'bi-speedometer2',       label: 'Tổng quan' },
       { id: 'taikhoan',     href: '/taikhoan.html',   icon: 'bi-person-badge-fill',  label: 'Quản lý Tài khoản' },
       { id: 'sinhvien',     href: '/sinhvien.html',   icon: 'bi-people',             label: 'Quản lý Sinh viên' },
+      { id: 'monhoc',       href: '/monhoc.html',     icon: 'bi-book',               label: 'Quản lý Môn học' },
       { id: 'lophocphan',   href: '/lophocphan.html', icon: 'bi-journal-bookmark',   label: 'Quản lý Lớp học phần' },
       { id: 'diem',         href: '/diem.html',       icon: 'bi-pencil-square',      label: 'Quản lý Điểm' },
       { id: 'baocao',       href: '/baocao.html',     icon: 'bi-graph-up',           label: 'Báo cáo học lực' },
@@ -84,6 +85,9 @@ function renderLayout(activePage) {
             <div class="fw-semibold">${hoTen}</div>
             <div>${roleBadge} ${refId ? `<small class="opacity-75">(${refId})</small>` : ''}</div>
           </div>
+          <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#modalDoiMatKhau" title="Đổi mật khẩu">
+            <i class="bi bi-key me-1"></i>Đổi mật khẩu
+          </button>
           <button class="btn btn-outline-light btn-sm" onclick="logout()" title="Đăng xuất">
             <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
           </button>
@@ -117,6 +121,40 @@ function renderLayout(activePage) {
     <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>`;
 
   document.body.insertAdjacentHTML('afterbegin', navbarHTML);
+
+  if (!document.getElementById('modalDoiMatKhau')) {
+    const modalHTML = `
+      <div class="modal fade" id="modalDoiMatKhau" tabindex="-1">
+        <div class="modal-dialog">
+          <form class="modal-content" onsubmit="doiMatKhau(event)">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="bi bi-key me-2"></i>Đổi mật khẩu</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div id="modalDoiMatKhau-error" class="alert alert-danger py-2 mb-3" style="display:none;"></div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Mật khẩu hiện tại <span class="text-danger">*</span></label>
+                <input type="password" id="dmkMatKhauCu" class="form-control" required placeholder="Nhập mật khẩu hiện tại" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Mật khẩu mới <span class="text-danger">*</span></label>
+                <input type="password" id="dmkMatKhauMoi" class="form-control" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Xác nhận mật khẩu mới <span class="text-danger">*</span></label>
+                <input type="password" id="dmkXacNhanMatKhau" class="form-control" required placeholder="Nhập lại mật khẩu mới" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+              <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i> Đổi mật khẩu</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
 
   const mainEl = document.querySelector('#page-main-content');
   if (mainEl) {
@@ -181,3 +219,46 @@ function renderLayout(activePage) {
     });
   }
 }
+
+async function doiMatKhau(e) {
+  e.preventDefault();
+  if (typeof clearModalError === 'function') clearModalError("modalDoiMatKhau");
+
+  const matKhauCu = document.getElementById("dmkMatKhauCu")?.value || "";
+  const matKhauMoi = document.getElementById("dmkMatKhauMoi")?.value || "";
+  const xacNhan = document.getElementById("dmkXacNhanMatKhau")?.value || "";
+
+  if (!matKhauCu) {
+    if (typeof showModalError === 'function') showModalError("modalDoiMatKhau", "Vui lòng nhập mật khẩu hiện tại.");
+    return;
+  }
+  if (!matKhauMoi || matKhauMoi.length < 6) {
+    if (typeof showModalError === 'function') showModalError("modalDoiMatKhau", "Mật khẩu mới phải có tối thiểu 6 ký tự.");
+    return;
+  }
+  if (matKhauMoi !== xacNhan) {
+    if (typeof showModalError === 'function') showModalError("modalDoiMatKhau", "Mật khẩu mới và xác nhận mật khẩu không khớp.");
+    return;
+  }
+
+  try {
+    await api("/api/Auth/doi-mat-khau", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ MatKhauCu: matKhauCu, MatKhauMoi: matKhauMoi })
+    });
+
+    const modalEl = document.getElementById("modalDoiMatKhau");
+    const modalObj = bootstrap.Modal.getInstance(modalEl);
+    if (modalObj) modalObj.hide();
+
+    document.getElementById("dmkMatKhauCu").value = "";
+    document.getElementById("dmkMatKhauMoi").value = "";
+    document.getElementById("dmkXacNhanMatKhau").value = "";
+
+    if (typeof toast === 'function') toast("Đổi mật khẩu thành công!");
+  } catch (err) {
+    if (typeof showModalError === 'function') showModalError("modalDoiMatKhau", err.message || "Đổi mật khẩu thất bại.");
+  }
+}
+

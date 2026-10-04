@@ -2,6 +2,7 @@ using doan_cuoiky_nosql.Models;
 using doan_cuoiky_nosql.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using MongoDB.Driver;
 using System.Security.Claims;
 
@@ -13,10 +14,12 @@ namespace doan_cuoiky_nosql.Controllers;
 public class TaiKhoanController : ControllerBase
 {
     private readonly MongoDbService _db;
+    private readonly IMemoryCache _cache;
 
-    public TaiKhoanController(MongoDbService db)
+    public TaiKhoanController(MongoDbService db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
 
     public record CreateAccountRequest(
@@ -95,6 +98,39 @@ public class TaiKhoanController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Id) || string.IsNullOrWhiteSpace(req.Password))
             return BadRequest("Tên đăng nhập và mật khẩu không được để trống.");
 
+        if (req.Password.Trim().Length < 6)
+            return BadRequest("Mật khẩu phải có tối thiểu 6 ký tự.");
+
+        var role = req.Role?.Trim().ToLower();
+        var validRoles = new[] { "admin", "giaovien", "sinhvien" };
+        if (string.IsNullOrWhiteSpace(role) || !validRoles.Contains(role))
+            return BadRequest("Vai trò không hợp lệ. Vai trò phải là 'admin', 'giaovien' hoặc 'sinhvien'.");
+
+        string? refId = string.IsNullOrWhiteSpace(req.RefId) ? null : req.RefId.Trim();
+
+        if (role == "admin")
+        {
+            refId = null;
+        }
+        else if (role == "giaovien")
+        {
+            if (string.IsNullOrWhiteSpace(refId))
+                return BadRequest("Tài khoản giáo viên yêu cầu phải chọn Mã giảng viên (RefId).");
+
+            var gvExists = await _db.GiangViens.Find(x => x.Id == refId).AnyAsync();
+            if (!gvExists)
+                return BadRequest($"Mã giảng viên '{refId}' không tồn tại trong hệ thống.");
+        }
+        else if (role == "sinhvien")
+        {
+            if (string.IsNullOrWhiteSpace(refId))
+                return BadRequest("Tài khoản sinh viên yêu cầu phải chọn Mã sinh viên (RefId).");
+
+            var svExists = await _db.SinhViens.Find(x => x.Id == refId).AnyAsync();
+            if (!svExists)
+                return BadRequest($"Mã sinh viên '{refId}' không tồn tại trong hệ thống.");
+        }
+
         var existing = await _db.TaiKhoans.Find(x => x.Id == req.Id.Trim()).FirstOrDefaultAsync();
         if (existing != null)
             return Conflict($"Tài khoản '{req.Id}' đã tồn tại.");
@@ -103,8 +139,8 @@ public class TaiKhoanController : ControllerBase
         {
             Id = req.Id.Trim(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
-            Role = req.Role.Trim().ToLower(),
-            RefId = string.IsNullOrWhiteSpace(req.RefId) ? null : req.RefId.Trim(),
+            Role = role,
+            RefId = refId,
             HoTen = req.HoTen.Trim(),
             IsActive = req.IsActive
         };
@@ -125,9 +161,42 @@ public class TaiKhoanController : ControllerBase
         var acc = await _db.TaiKhoans.Find(x => x.Id == id).FirstOrDefaultAsync();
         if (acc == null) return NotFound("Không tìm thấy tài khoản.");
 
+        var role = req.Role?.Trim().ToLower();
+        var validRoles = new[] { "admin", "giaovien", "sinhvien" };
+        if (string.IsNullOrWhiteSpace(role) || !validRoles.Contains(role))
+            return BadRequest("Vai trò không hợp lệ. Vai trò phải là 'admin', 'giaovien' hoặc 'sinhvien'.");
+
+        if (!string.IsNullOrWhiteSpace(req.Password) && req.Password.Trim().Length < 6)
+            return BadRequest("Mật khẩu mới phải có tối thiểu 6 ký tự.");
+
+        string? refId = string.IsNullOrWhiteSpace(req.RefId) ? null : req.RefId.Trim();
+
+        if (role == "admin")
+        {
+            refId = null;
+        }
+        else if (role == "giaovien")
+        {
+            if (string.IsNullOrWhiteSpace(refId))
+                return BadRequest("Tài khoản giáo viên yêu cầu phải chọn Mã giảng viên (RefId).");
+
+            var gvExists = await _db.GiangViens.Find(x => x.Id == refId).AnyAsync();
+            if (!gvExists)
+                return BadRequest($"Mã giảng viên '{refId}' không tồn tại trong hệ thống.");
+        }
+        else if (role == "sinhvien")
+        {
+            if (string.IsNullOrWhiteSpace(refId))
+                return BadRequest("Tài khoản sinh viên yêu cầu phải chọn Mã sinh viên (RefId).");
+
+            var svExists = await _db.SinhViens.Find(x => x.Id == refId).AnyAsync();
+            if (!svExists)
+                return BadRequest($"Mã sinh viên '{refId}' không tồn tại trong hệ thống.");
+        }
+
         var update = Builders<TaiKhoan>.Update
-            .Set(x => x.Role, req.Role.Trim().ToLower())
-            .Set(x => x.RefId, string.IsNullOrWhiteSpace(req.RefId) ? null : req.RefId.Trim())
+            .Set(x => x.Role, role)
+            .Set(x => x.RefId, refId)
             .Set(x => x.HoTen, req.HoTen.Trim())
             .Set(x => x.IsActive, req.IsActive);
 
@@ -137,6 +206,10 @@ public class TaiKhoanController : ControllerBase
         }
 
         await _db.TaiKhoans.UpdateOneAsync(x => x.Id == id, update);
+
+        // Xóa cache tài khoản
+        _cache.Remove($"user_active_{id}");
+
         return NoContent();
     }
 
@@ -156,6 +229,10 @@ public class TaiKhoanController : ControllerBase
         );
 
         if (result.MatchedCount == 0) return NotFound("Không tìm thấy tài khoản.");
+
+        // Xóa cache tài khoản
+        _cache.Remove($"user_active_{id}");
+
         return Ok(new { message = isActive ? "Đã kích hoạt tài khoản." : "Đã vô hiệu hóa tài khoản.", isActive });
     }
 
@@ -168,6 +245,9 @@ public class TaiKhoanController : ControllerBase
 
         var result = await _db.TaiKhoans.DeleteOneAsync(x => x.Id == id);
         if (result.DeletedCount == 0) return NotFound("Không tìm thấy tài khoản.");
+
+        // Xóa cache tài khoản
+        _cache.Remove($"user_active_{id}");
 
         return Ok("Đã xóa tài khoản thành công.");
     }
