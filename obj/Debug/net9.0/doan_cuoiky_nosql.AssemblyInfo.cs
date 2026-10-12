@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("doan_cuoiky_nosql")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1fd3bdb9bb78a14e07467bca56045bba6a3a7da3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0e0305c5157767891c350ed961c33958ac58dc61")]
 [assembly: System.Reflection.AssemblyProductAttribute("doan_cuoiky_nosql")]
 [assembly: System.Reflection.AssemblyTitleAttribute("doan_cuoiky_nosql")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

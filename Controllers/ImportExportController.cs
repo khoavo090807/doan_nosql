@@ -63,16 +63,46 @@ public class ImportExportController : ControllerBase
         if (students is null || students.Count == 0)
             return BadRequest("File không chứa sinh viên.");
 
-        var ops = students.Select(sv =>
+        var importedCount = students.Count;
+        var studentsToImport = students.GroupBy(x => x.Id).Select(x => x.Last()).ToList();
+        var studentIds = studentsToImport.Select(x => x.Id).ToList();
+        var oldStudents = await _db.SinhViens.Find(x => studentIds.Contains(x.Id)).ToListAsync();
+        var oldById = oldStudents.ToDictionary(x => x.Id);
+        var enrollmentDeltas = new Dictionary<string, int>();
+
+        foreach (var student in studentsToImport)
+        {
+            if (oldById.TryGetValue(student.Id, out var oldStudent))
+            {
+                foreach (var enrollment in (oldStudent.BangDiem ?? new List<BangDiemMonHoc>()).GroupBy(x => x.MaLHP))
+                    enrollmentDeltas[enrollment.Key] = enrollmentDeltas.GetValueOrDefault(enrollment.Key) - enrollment.Count();
+            }
+
+            foreach (var enrollment in (student.BangDiem ?? new List<BangDiemMonHoc>()).GroupBy(x => x.MaLHP))
+                enrollmentDeltas[enrollment.Key] = enrollmentDeltas.GetValueOrDefault(enrollment.Key) + enrollment.Count();
+        }
+
+        var ops = studentsToImport.Select(sv =>
             new ReplaceOneModel<SinhVien>(Builders<SinhVien>.Filter.Eq(x => x.Id, sv.Id), sv)
             {
                 IsUpsert = true
             }).ToList();
 
         var result = await _db.SinhViens.BulkWriteAsync(ops);
+        foreach (var delta in enrollmentDeltas.Where(x => x.Value != 0))
+        {
+            var filter = Builders<LopHocPhan>.Filter.Eq(x => x.Id, delta.Key);
+            if (delta.Value < 0)
+                filter &= Builders<LopHocPhan>.Filter.Gte(x => x.SiSoHienTai, -delta.Value);
+
+            await _db.LopHocPhans.UpdateOneAsync(
+                filter,
+                Builders<LopHocPhan>.Update.Inc(x => x.SiSoHienTai, delta.Value));
+        }
+
         return Ok(new
         {
-            imported = students.Count,
+            imported = importedCount,
             upserted = result.Upserts.Count,
             modified = result.ModifiedCount
         });

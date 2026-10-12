@@ -2,6 +2,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace doan_cuoiky_nosql.Models;
 
@@ -21,6 +22,14 @@ public class SinhVien
     public string LopSinhHoat { get; set; } = null!;
     public string MaKhoa { get; set; } = null!;
     public string TrangThai { get; set; } = null!;
+
+    [BsonIgnore]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TaoTaiKhoan { get; set; }
+
+    [BsonIgnore]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatKhauTaiKhoan { get; set; }
 
     [BsonIgnoreIfNull]
     public string? TenKhoa { get; set; }

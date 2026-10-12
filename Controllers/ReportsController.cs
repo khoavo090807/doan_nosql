@@ -58,13 +58,18 @@ public class ReportsController : ControllerBase
         var pipeline = new List<BsonDocument>
         {
             new BsonDocument("$match", matchDoc),
-            new BsonDocument("$unwind", "$BangDiem")
+            new BsonDocument("$addFields", new BsonDocument("BangDiem", new BsonDocument("$filter", new BsonDocument
+            {
+                { "input", new BsonDocument("$ifNull", new BsonArray { "$BangDiem", new BsonArray() }) },
+                { "as", "b" },
+                { "cond", TaoDieuKienCoDiem(currentRole == "giaovien" ? myLhpList : null) }
+            }))),
+            new BsonDocument("$unwind", new BsonDocument
+            {
+                { "path", "$BangDiem" },
+                { "preserveNullAndEmptyArrays", true }
+            })
         };
-
-        if (currentRole == "giaovien" && myLhpList != null)
-        {
-            pipeline.Add(new BsonDocument("$match", new BsonDocument("BangDiem.MaLHP", new BsonDocument("$in", new BsonArray(myLhpList)))));
-        }
 
         pipeline.Add(new BsonDocument("$group", new BsonDocument
         {
@@ -80,7 +85,13 @@ public class ReportsController : ControllerBase
                     "$BangDiem.SoTinChi"
                 }))
             },
-            { "TongTinChi", new BsonDocument("$sum", "$BangDiem.SoTinChi") }
+            { "TongTinChi", new BsonDocument("$sum", "$BangDiem.SoTinChi") },
+            { "SoMonCoDiem", new BsonDocument("$sum", new BsonDocument("$cond", new BsonArray
+            {
+                new BsonDocument("$ifNull", new BsonArray { "$BangDiem.MaLHP", false }),
+                1,
+                0
+            })) }
         }));
 
         pipeline.Add(new BsonDocument("$project", new BsonDocument
@@ -89,6 +100,7 @@ public class ReportsController : ControllerBase
             { "LopSinhHoat", 1 },
             { "KhoaHoc", 1 },
             { "TongTinChi", 1 },
+            { "SoMonCoDiem", 1 },
             {
                 "GPA",
                 new BsonDocument("$cond", new BsonArray
@@ -113,11 +125,13 @@ public class ReportsController : ControllerBase
             { "GPA", 1 },
             {
                 "XepLoai",
-                new BsonDocument("$switch", new BsonDocument
+                new BsonDocument("$cond", new BsonArray
                 {
+                    new BsonDocument("$eq", new BsonArray { "$SoMonCoDiem", 0 }),
+                    "Chưa có điểm",
+                    new BsonDocument("$switch", new BsonDocument
                     {
-                        "branches",
-                        new BsonArray
+                        { "branches", new BsonArray
                         {
                             new BsonDocument
                             {
@@ -139,9 +153,9 @@ public class ReportsController : ControllerBase
                                 { "case", new BsonDocument("$gte", new BsonArray { "$GPA", 5.0 }) },
                                 { "then", "Trung bình" }
                             }
-                        }
-                    },
-                    { "default", "Yếu" }
+                        } },
+                        { "default", "Yếu" }
+                    })
                 })
             }
         }));
@@ -164,6 +178,24 @@ public class ReportsController : ControllerBase
         });
 
         return Ok(json);
+    }
+
+    private static BsonDocument TaoDieuKienCoDiem(List<string>? maLhpList = null)
+    {
+        var coDiem = new BsonDocument("$or", new BsonArray
+        {
+            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ChuyenCan", BsonNull.Value }), BsonNull.Value }),
+            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.GiuaKy", BsonNull.Value }), BsonNull.Value }),
+            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ThucHanh", BsonNull.Value }), BsonNull.Value }),
+            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.CuoiKy", BsonNull.Value }), BsonNull.Value })
+        });
+
+        if (maLhpList == null) return coDiem;
+        return new BsonDocument("$and", new BsonArray
+        {
+            coDiem,
+            new BsonDocument("$in", new BsonArray { "$$b.MaLHP", new BsonArray(maLhpList) })
+        });
     }
 
     [HttpGet("lopsinhhoat")]

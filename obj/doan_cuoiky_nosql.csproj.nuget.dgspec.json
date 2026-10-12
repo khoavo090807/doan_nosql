@@ -65,6 +65,10 @@
             "MongoDB.Driver": {
               "target": "Package",
               "version": "[2.19.0, )"
+            },
+            "QuestPDF": {
+              "target": "Package",
+              "version": "[2026.9.1, )"
             }
           },
           "imports": [

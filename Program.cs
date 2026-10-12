@@ -5,10 +5,14 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using QuestPDF.Infrastructure;
 using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.FontDiscoveryPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "fonts");
 
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
@@ -103,6 +107,7 @@ app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 // Đồng bộ giảng viên trong BangDiem khi server khởi động
+await app.Services.GetRequiredService<MongoDbService>().InitializeIndexesAndEnrollmentCountsAsync();
 await SyncGiangVienInBangDiem(app.Services);
 
 app.Run();

@@ -16,6 +16,7 @@ public class LopHocPhan
     public string PhongHoc { get; set; } = null!;
     public string LichHoc { get; set; } = null!;
     public int SiSoToiDa { get; set; }
+    public int SiSoHienTai { get; set; }
     /// <summary>
     /// Trạng thái mở/đóng lớp học phần cho sinh viên đăng ký.
     /// true = mở (sinh viên có thể đăng ký), false = đóng (không cho đăng ký).

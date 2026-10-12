@@ -323,6 +323,9 @@ async function editSv(id) {
   document.getElementById("svLop").value = sv.LopSinhHoat || "";
   document.getElementById("svKhoaHoc").value = sv.KhoaHoc || "";
   document.getElementById("svTrangThaiDiv").style.display = "block";
+  document.getElementById("svCreateAccountDiv").style.display = "none";
+  document.getElementById("svTaoTaiKhoan").checked = false;
+  document.getElementById("svMatKhauTaiKhoan").value = "";
   document.getElementById("svTrangThai").value = sv.TrangThai || "Đang học";
   clearModalError("modalSinhVien");
   document.getElementById("svModalTitle").innerText = "Chỉnh sửa hồ sơ Sinh viên";
@@ -384,11 +387,22 @@ function openCreateSv() {
   document.getElementById("svGioiTinh").value = "Nam";
   const ttDiv = document.getElementById("svTrangThaiDiv");
   if (ttDiv) ttDiv.style.display = "none";
+  document.getElementById("svCreateAccountDiv").style.display = "block";
+  document.getElementById("svTaoTaiKhoan").checked = false;
+  document.getElementById("svMatKhauTaiKhoan").value = "";
+  toggleCreateStudentAccount();
   document.getElementById("svLop").value = "14DHTH01";
   document.getElementById("svKhoaHoc").value = "K14";
   fillKhoaSelects("K01");
   clearModalError("modalSinhVien");
   document.getElementById("svModalTitle").innerText = "Thêm sinh viên mới";
+}
+
+function toggleCreateStudentAccount() {
+  const checked = document.getElementById("svTaoTaiKhoan").checked;
+  const password = document.getElementById("svMatKhauTaiKhoan");
+  password.disabled = !checked;
+  password.required = checked;
 }
 
 async function saveSinhVien(e) {
@@ -398,10 +412,17 @@ async function saveSinhVien(e) {
   const oldId   = document.getElementById("svIsEdit").value;  // rỗng = Thêm mới
   const newId   = document.getElementById("svId").value.trim();
   const idField = document.getElementById("svId");
+  const taoTaiKhoan = !oldId && document.getElementById("svTaoTaiKhoan").checked;
+  const matKhauTaiKhoan = document.getElementById("svMatKhauTaiKhoan").value;
 
   if (!newId) {
     showModalError("modalSinhVien", "MSSV không được để trống.");
     idField.classList.add("is-invalid"); idField.focus(); return;
+  }
+  if (taoTaiKhoan && matKhauTaiKhoan.trim().length < 6) {
+    showModalError("modalSinhVien", "Mật khẩu tài khoản sinh viên phải có tối thiểu 6 ký tự.");
+    document.getElementById("svMatKhauTaiKhoan").focus();
+    return;
   }
 
   // Kiểm tra trùng MSSV: nếu thêm mới HOẶC đổi MSSV sang ID khác
@@ -429,7 +450,9 @@ async function saveSinhVien(e) {
     MaKhoa: document.getElementById("svMaKhoa").value,
     KhoaHoc: document.getElementById("svKhoaHoc").value,
     TrangThai: document.getElementById("svTrangThai")?.value || "Đang học",
-    BangDiem: existingBangDiem
+    BangDiem: existingBangDiem,
+    TaoTaiKhoan: taoTaiKhoan,
+    MatKhauTaiKhoan: taoTaiKhoan ? matKhauTaiKhoan : null
   };
 
   try {
@@ -703,6 +726,8 @@ async function initQuanLyDiemPage() {
     const studentView = document.getElementById('studentTranscriptView');
     if (managementView) managementView.style.display = 'none';
     if (studentView) studentView.style.display = 'block';
+    const downloadPdfBtn = document.getElementById('downloadTranscriptPdfBtn');
+    if (downloadPdfBtn) downloadPdfBtn.style.display = '';
     document.getElementById('printDateString').textContent = 'Ngày in: ' + new Date().toLocaleDateString('vi-VN');
     if (refId) await loadStudentTranscript(refId);
     return;
@@ -720,6 +745,40 @@ async function initQuanLyDiemPage() {
   const refLhp = new URLSearchParams(window.location.search).get('lhp');
   await fillLhpSelect(role === 'giaovien' ? null : undefined);
   await loadDiemSvList(refLhp);
+}
+
+async function downloadTranscriptPdf() {
+  const refId = localStorage.getItem('refId');
+  if (!refId) {
+    toast('Không xác định được mã sinh viên.', 'danger');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/SinhVien/${encodeURIComponent(refId)}/bangdiem/pdf`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` }
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.clear();
+        window.location.href = '/login.html';
+      }
+      const message = await response.text();
+      throw new Error(message || 'Không tải được bảng điểm PDF.');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BangDiem_${refId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast('Lỗi tải PDF: ' + error.message, 'danger');
+  }
 }
 
 async function loadStudentTranscript(svId) {
@@ -753,7 +812,7 @@ async function loadStudentTranscript(svId) {
   const cloRows = [];
   bangDiem.forEach(b => {
     (b.DiemCLO || []).forEach(clo => cloRows.push(`
-      <tr><td class="text-center"><code>${clo.MaCLO}</code></td><td>${b.TenMon}</td><td>Chuẩn đầu ra ${clo.MaCLO}</td><td class="text-center">—</td><td class="text-center">${clo.DiemDat ?? 0}</td><td class="text-center">${clo.KetQua === 'Đạt' || Number(clo.DiemDat) >= 5 ? '<span class="badge bg-success">Đạt</span>' : '<span class="badge bg-secondary">Chưa đánh giá</span>'}</td></tr>`));
+      <tr><td class="text-center"><code>${clo.MaCLO}</code></td><td>${b.TenMon}</td><td>Chuẩn đầu ra ${clo.MaCLO}</td><td class="text-center">—</td><td class="text-center">${clo.DiemDat ?? 0}</td><td class="text-center">${clo.KetQua === 'Đạt' || Number(clo.DiemDat) >= 5 ? '<span class="badge bg-success">Đạt</span>' : clo.KetQua === 'Không đạt' ? '<span class="badge bg-danger">Không đạt</span>' : '<span class="badge bg-secondary">Chưa đánh giá</span>'}</td></tr>`));
   });
   document.getElementById('svCloTableBody').innerHTML = cloRows.length ? cloRows.join('') : '<tr><td colspan="6" class="text-center py-3 text-muted">Chưa có dữ liệu chuẩn đầu ra CLO.</td></tr>';
 }
@@ -1268,16 +1327,23 @@ async function loadBaoCao() {
       // Tính GPA và xếp loại cho từng sinh viên dựa trên điểm đã thu thập
       const studentReports = [];
       for (const [, data] of studentMap) {
-        const filteredBD = data.diemEntries;
+        const filteredBD = data.diemEntries.filter(b =>
+          b.DiemThanhPhan?.ChuyenCan != null ||
+          b.DiemThanhPhan?.GiuaKy != null ||
+          b.DiemThanhPhan?.ThucHanh != null ||
+          b.DiemThanhPhan?.CuoiKy != null
+        );
         const tongTinChi = filteredBD.reduce((s, b) => s + (b.SoTinChi || 0), 0);
         const tongDiemHeSo = filteredBD.reduce((s, b) => s + (b.DiemTongKet || 0) * (b.SoTinChi || 0), 0);
         const gpa = tongTinChi > 0 ? Math.round((tongDiemHeSo / tongTinChi) * 100) / 100 : 0;
-        let xepLoai = 'Yếu';
-        if (gpa >= 9) xepLoai = 'Xuất sắc';
-        else if (gpa >= 8) xepLoai = 'Giỏi';
-        else if (gpa >= 7) xepLoai = 'Khá';
-        else if (gpa >= 5) xepLoai = 'Trung bình';
-        if (!filteredBD.length) xepLoai = 'Chưa có điểm';
+        let xepLoai = 'Chưa có điểm';
+        if (filteredBD.length) {
+          xepLoai = 'Yếu';
+          if (gpa >= 9) xepLoai = 'Xuất sắc';
+          else if (gpa >= 8) xepLoai = 'Giỏi';
+          else if (gpa >= 7) xepLoai = 'Khá';
+          else if (gpa >= 5) xepLoai = 'Trung bình';
+        }
         studentReports.push({
           Id: data.Id,
           HoTen: data.HoTen,

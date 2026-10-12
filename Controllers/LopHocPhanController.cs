@@ -76,24 +76,6 @@ public class LopHocPhanController : ControllerBase
         var monHocs = await _db.MonHocs.Find(Builders<MonHoc>.Filter.Empty).ToListAsync();
         var monHocTinChiMap = monHocs.ToDictionary(m => m.Id, m => m.SoTinChi);
 
-        // Đếm sĩ số hiện tại từ BangDiem của sinh viên
-        var enrollCounts = await _db.SinhViens.Aggregate<BsonDocument>(new[]
-        {
-            new BsonDocument("$unwind", "$BangDiem"),
-            new BsonDocument("$group", new BsonDocument
-            {
-                { "_id", "$BangDiem.MaLHP" },
-                { "count", new BsonDocument("$sum", 1) }
-            })
-        }).ToListAsync();
-
-        var countDict = enrollCounts
-            .Where(d => d.Contains("_id") && d["_id"].IsString)
-            .ToDictionary(
-                d => d["_id"].AsString,
-                d => d["count"].AsInt32
-            );
-
         var result = list.Select(l => new
         {
             l.Id,
@@ -108,8 +90,8 @@ public class LopHocPhanController : ControllerBase
             l.SiSoToiDa,
             l.DaMo,
             l.ChoPhepGvNhapSuaDiem,
-            SiSoHienTai = countDict.TryGetValue(l.Id, out var cnt) ? cnt : 0,
-            ConCho = l.SiSoToiDa - (countDict.TryGetValue(l.Id, out var c) ? c : 0)
+            l.SiSoHienTai,
+            ConCho = l.SiSoToiDa - l.SiSoHienTai
         }).ToList();
 
         return Ok(result);
@@ -134,7 +116,6 @@ public class LopHocPhanController : ControllerBase
         var mon = await _db.MonHocs.Find(m => m.Id == item.MaMon).FirstOrDefaultAsync();
         int soTinChi = item.SoTinChi > 0 ? item.SoTinChi : (mon?.SoTinChi ?? 3);
 
-        var count = await _db.SinhViens.CountDocumentsAsync(x => x.BangDiem.Any(b => b.MaLHP == id));
         return Ok(new
         {
             item.Id,
@@ -149,8 +130,8 @@ public class LopHocPhanController : ControllerBase
             item.SiSoToiDa,
             item.DaMo,
             item.ChoPhepGvNhapSuaDiem,
-            SiSoHienTai = (int)count,
-            ConCho = item.SiSoToiDa - (int)count
+            item.SiSoHienTai,
+            ConCho = item.SiSoToiDa - item.SiSoHienTai
         });
     }
 
@@ -195,6 +176,7 @@ public class LopHocPhanController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<ActionResult> Create(LopHocPhan lhp)
     {
+        lhp.SiSoHienTai = 0;
         await _db.LopHocPhans.InsertOneAsync(lhp);
         return CreatedAtAction(nameof(GetById), new { id = lhp.Id }, lhp);
     }
@@ -207,7 +189,19 @@ public class LopHocPhanController : ControllerBase
         var existing = await _db.LopHocPhans.Find(x => x.Id == id).FirstOrDefaultAsync();
         if (existing == null) return NotFound();
 
-        var result = await _db.LopHocPhans.ReplaceOneAsync(x => x.Id == id, lhp);
+        var update = Builders<LopHocPhan>.Update
+            .Set(x => x.MaMon, lhp.MaMon)
+            .Set(x => x.TenMon, lhp.TenMon)
+            .Set(x => x.SoTinChi, lhp.SoTinChi)
+            .Set(x => x.Hocky, lhp.Hocky)
+            .Set(x => x.NamHoc, lhp.NamHoc)
+            .Set(x => x.GiangVien, lhp.GiangVien)
+            .Set(x => x.PhongHoc, lhp.PhongHoc)
+            .Set(x => x.LichHoc, lhp.LichHoc)
+            .Set(x => x.SiSoToiDa, lhp.SiSoToiDa)
+            .Set(x => x.DaMo, lhp.DaMo)
+            .Set(x => x.ChoPhepGvNhapSuaDiem, lhp.ChoPhepGvNhapSuaDiem);
+        var result = await _db.LopHocPhans.UpdateOneAsync(x => x.Id == id, update);
         if (result.MatchedCount == 0) return NotFound();
 
         // Đồng bộ thông tin giảng viên mới vào BangDiem của tất cả sinh viên đã đăng ký lớp này
@@ -240,22 +234,35 @@ public class LopHocPhanController : ControllerBase
         var lhp = await _db.LopHocPhans.Find(x => x.Id == id).FirstOrDefaultAsync();
         if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
 
-        lhp.DaMo = request.DaMo;
-        var updateResult = await _db.LopHocPhans.ReplaceOneAsync(
-            x => x.Id == id, lhp,
-            new ReplaceOptions { IsUpsert = false });
+        var updateResult = await _db.LopHocPhans.UpdateOneAsync(
+            x => x.Id == id,
+            Builders<LopHocPhan>.Update.Set(x => x.DaMo, request.DaMo));
 
         if (updateResult.MatchedCount == 0) return NotFound();
 
-        return Ok(new { lhp.Id, lhp.DaMo, Message = request.DaMo ? "Đã mở lớp học phần." : "Đã đóng lớp học phần." });
+        return Ok(new { lhp.Id, DaMo = request.DaMo, Message = request.DaMo ? "Đã mở lớp học phần." : "Đã đóng lớp học phần." });
     }
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Delete(string id)
     {
-        var result = await _db.LopHocPhans.DeleteOneAsync(x => x.Id == id);
-        return result.DeletedCount > 0 ? NoContent() : NotFound();
+        var lhp = await _db.LopHocPhans.Find(x => x.Id == id).FirstOrDefaultAsync();
+        if (lhp == null) return NotFound();
+
+        var enrollmentCount = await _db.SinhViens.CountDocumentsAsync(x => x.BangDiem.Any(b => b.MaLHP == id));
+        if (enrollmentCount > 0)
+            return Conflict("Không thể xóa lớp học phần vì vẫn còn sinh viên đăng ký.");
+
+        var result = await _db.LopHocPhans.DeleteOneAsync(
+            Builders<LopHocPhan>.Filter.Eq(x => x.Id, id) &
+            Builders<LopHocPhan>.Filter.Eq(x => x.SiSoHienTai, 0));
+        if (result.DeletedCount > 0) return NoContent();
+
+        var stillExists = await _db.LopHocPhans.Find(x => x.Id == id).AnyAsync();
+        return stillExists
+            ? Conflict("Không thể xóa lớp học phần vì vẫn còn sinh viên đăng ký.")
+            : NotFound();
     }
 
     /// <summary>
