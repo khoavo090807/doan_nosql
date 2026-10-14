@@ -72,7 +72,7 @@ function renderLayout(activePage) {
     <nav class="navbar navbar-dark navbar-lms sticky-top">
       <div class="container-fluid">
         <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-outline-light btn-sm d-md-none me-1" id="mobileMenuBtn" title="Mở menu">
+          <button class="btn btn-outline-light btn-sm d-lg-none me-1" id="mobileMenuBtn" title="Mở menu" aria-label="Mở menu" aria-expanded="false">
             <i class="bi bi-list"></i>
           </button>
           <a class="navbar-brand fw-bold" href="/">
@@ -86,10 +86,10 @@ function renderLayout(activePage) {
             <div>${roleBadge} ${refId ? `<small class="opacity-75">(${refId})</small>` : ''}</div>
           </div>
           <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#modalDoiMatKhau" title="Đổi mật khẩu">
-            <i class="bi bi-key me-1"></i>Đổi mật khẩu
+            <i class="bi bi-key me-1"></i><span class="navbar-action-label">Đổi mật khẩu</span>
           </button>
           <button class="btn btn-outline-light btn-sm" onclick="logout()" title="Đăng xuất">
-            <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
+            <i class="bi bi-box-arrow-right me-1"></i><span class="navbar-action-label">Đăng xuất</span>
           </button>
         </div>
       </div>
@@ -156,6 +156,25 @@ function renderLayout(activePage) {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
   }
 
+  if (!document.getElementById('confirmActionModal')) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-labelledby="confirmActionTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="confirmActionTitle">Xác nhận thao tác</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body" id="confirmActionMessage"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+              <button type="button" class="btn btn-primary" id="confirmActionAccept">Xác nhận</button>
+            </div>
+          </div>
+        </div>
+      </div>`);
+  }
+
   const mainEl = document.querySelector('#page-main-content');
   if (mainEl) {
     const wrapper = document.createElement('div');
@@ -165,9 +184,14 @@ function renderLayout(activePage) {
     wrapper.appendChild(mainEl);
   }
 
-  // Sidebar kiểu YouTube: rail 64px luôn trong flow, mở rộng chỉ overlay tạm thời
+  // Ghi nhớ trạng thái sidebar trên desktop; mobile luôn dùng menu phủ.
   const layout = document.querySelector('.lms-layout');
-  if (layout) layout.classList.add('collapsed');
+  const sidebarStorageKey = 'lmsSidebarCollapsed';
+  const desktopQuery = window.matchMedia('(min-width: 992px)');
+  if (layout) {
+    const savedState = localStorage.getItem(sidebarStorageKey);
+    layout.classList.toggle('collapsed', savedState === 'true');
+  }
 
   const toggleBtn = document.getElementById('sidebarToggle');
   const updateIcon = () => {
@@ -184,6 +208,8 @@ function renderLayout(activePage) {
     if (!layout) return;
     layout.classList.add('collapsed');
     layout.classList.remove('sidebar-open');
+    if (desktopQuery.matches) localStorage.setItem(sidebarStorageKey, 'true');
+    document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'false');
     updateIcon();
   };
 
@@ -192,6 +218,7 @@ function renderLayout(activePage) {
     toggleBtn.addEventListener('click', () => {
       if (!layout) return;
       layout.classList.toggle('collapsed');
+      localStorage.setItem(sidebarStorageKey, layout.classList.contains('collapsed') ? 'true' : 'false');
       updateIcon();
     });
   }
@@ -207,17 +234,36 @@ function renderLayout(activePage) {
     }
   });
 
-  // Menu di động: overlay đè nội dung, không push layout
+  // Menu di động dưới 992px.
   const mobileBtn = document.getElementById('mobileMenuBtn');
   if (mobileBtn) {
-    const closeMobile = () => { if (layout) layout.classList.remove('sidebar-open'); };
+    const closeMobile = () => {
+      if (layout) layout.classList.remove('sidebar-open');
+      mobileBtn.setAttribute('aria-expanded', 'false');
+    };
     mobileBtn.addEventListener('click', () => {
-      if (layout) layout.classList.toggle('sidebar-open');
+      if (!layout) return;
+      const open = layout.classList.toggle('sidebar-open');
+      mobileBtn.setAttribute('aria-expanded', String(open));
     });
     document.querySelectorAll('#lms-sidebar .nav-link').forEach(a => {
       a.addEventListener('click', closeMobile);
     });
+    desktopQuery.addEventListener('change', () => {
+      closeMobile();
+      updateIcon();
+    });
   }
+
+  if (!document.getElementById('lmsToastRegion')) {
+    document.body.insertAdjacentHTML('beforeend', '<div id="lmsToastRegion" class="toast-container position-fixed top-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>');
+  }
+
+  document.addEventListener('shown.bs.modal', event => {
+    const firstField = Array.from(event.target.querySelectorAll('input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)'))
+      .find(field => field.getClientRects().length > 0);
+    firstField?.focus({ preventScroll: true });
+  });
 }
 
 async function doiMatKhau(e) {

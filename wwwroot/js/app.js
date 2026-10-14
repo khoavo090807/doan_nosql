@@ -28,13 +28,116 @@ const api = (path, opts = {}) => {
 };
 
 function toast(msg, type = "success") {
-  const box = document.getElementById("alertBox");
-  if (!box) return;
-  box.innerHTML =
-    `<div class="alert alert-${type} alert-dismissible fade show py-2">${msg}
-       <button class="btn-close" data-bs-dismiss="alert"></button></div>`;
-  setTimeout(() => { try { box.innerHTML = ""; } catch {} }, 5000);
+  let region = document.getElementById('lmsToastRegion');
+  if (!region) {
+    region = document.createElement('div');
+    region.id = 'lmsToastRegion';
+    region.className = 'toast-container position-fixed top-0 end-0 p-3';
+    region.setAttribute('aria-live', 'polite');
+    region.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(region);
+  }
+  const tone = type === 'danger' ? 'danger' : type === 'warning' ? 'warning' : type === 'info' ? 'info' : 'success';
+  const item = document.createElement('div');
+  item.className = `toast text-bg-${tone} border-0`;
+  item.setAttribute('role', 'status');
+  item.innerHTML = `<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Đóng"></button></div>`;
+  item.querySelector('.toast-body').textContent = String(msg ?? '');
+  region.appendChild(item);
+  const instance = bootstrap.Toast.getOrCreateInstance(item, { delay: 4500 });
+  item.addEventListener('hidden.bs.toast', () => item.remove(), { once: true });
+  instance.show();
 }
+
+function confirmAction(message, options = {}) {
+  const modalEl = document.getElementById('confirmActionModal');
+  const messageEl = document.getElementById('confirmActionMessage');
+  const titleEl = document.getElementById('confirmActionTitle');
+  const acceptBtn = document.getElementById('confirmActionAccept');
+  if (!modalEl || !window.bootstrap?.Modal) return Promise.resolve(false);
+
+  messageEl.textContent = message;
+  titleEl.textContent = options.title || 'Xác nhận thao tác';
+  acceptBtn.textContent = options.confirmText || 'Xác nhận';
+  acceptBtn.className = `btn btn-${options.variant || 'primary'}`;
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  return new Promise(resolve => {
+    let accepted = false;
+    const onAccept = () => { accepted = true; modal.hide(); };
+    acceptBtn.addEventListener('click', onAccept, { once: true });
+    modalEl.addEventListener('hidden.bs.modal', () => resolve(accepted), { once: true });
+    modal.show();
+  });
+}
+
+function clientFieldError(field) {
+  const value = String(field.value ?? '').trim();
+  if (field.required && !value) return 'Trường này không được để trống.';
+  if (field.type === 'email' && value && field.validity.typeMismatch) return 'Vui lòng nhập địa chỉ email hợp lệ.';
+  if (field.minLength > 0 && value && value.length < field.minLength) return `Vui lòng nhập ít nhất ${field.minLength} ký tự.`;
+  if (field.type === 'number' && value !== '') {
+    const number = Number(value);
+    if (field.validity.stepMismatch) return 'Vui lòng nhập giá trị đúng định dạng.';
+    if (field.min !== '' && number < Number(field.min)) return `Giá trị phải từ ${field.min} trở lên.`;
+    if (field.max !== '' && number > Number(field.max)) return `Giá trị không được vượt quá ${field.max}.`;
+  }
+  return '';
+}
+
+function updateClientFieldValidity(field, show = false) {
+  const message = clientFieldError(field);
+  field.setCustomValidity(message);
+  field.classList.toggle('is-invalid', show && !!message);
+  const feedback = field.parentElement?.querySelector('.invalid-feedback');
+  if (feedback && message) feedback.textContent = message;
+  return !message;
+}
+
+function validateClientForm(form) {
+  let valid = true;
+  form.querySelectorAll('input, select, textarea').forEach(field => {
+    if (field.disabled || field.type === 'hidden') return;
+    if (!updateClientFieldValidity(field, true)) valid = false;
+  });
+  return valid;
+}
+
+function bindLiveFormValidation(form) {
+  if (!form || form.dataset.liveValidation === 'true') return;
+  form.dataset.liveValidation = 'true';
+  form.closest('.modal')?.addEventListener('show.bs.modal', () => {
+    form.querySelectorAll('input, select, textarea').forEach(field => {
+      field.setCustomValidity('');
+      field.classList.remove('is-invalid');
+      delete field.dataset.touched;
+    });
+  });
+  form.addEventListener('blur', event => {
+    if (event.target.matches('input, select, textarea')) {
+      event.target.dataset.touched = 'true';
+      updateClientFieldValidity(event.target, true);
+    }
+  }, true);
+  form.addEventListener('input', event => {
+    if (event.target.matches('input, select, textarea') && event.target.dataset.touched === 'true') {
+      updateClientFieldValidity(event.target, true);
+    }
+  });
+  form.addEventListener('change', event => {
+    if (event.target.matches('input, select, textarea') && event.target.dataset.touched === 'true') {
+      updateClientFieldValidity(event.target, true);
+    }
+  });
+  form.addEventListener('submit', event => {
+    if (!validateClientForm(form)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+}
+
+document.querySelectorAll('.modal form').forEach(bindLiveFormValidation);
 
 function showModalError(modalId, msg) {
   const zone = document.getElementById(modalId + "-error");
@@ -94,7 +197,7 @@ async function loadDashboard() {
     }
     await loadAdminDashboard();
   } catch (e) {
-    toast("Không kết nối được API / MongoDB: " + e.message, "danger");
+    toast("Không thể tải dữ liệu tổng quan: " + e.message, "danger");
   }
 }
 
@@ -269,42 +372,103 @@ async function fillKhoaSelects(selectedId) {
   } catch {}
 }
 
-async function loadSinhVien() {
-  const table = document.getElementById("svTable");
+let _sinhVienRows = [];
+let _sinhVienPage = 1;
+let _sinhVienPageSize = 10;
+let _sinhVienLoaded = false;
+
+function debounceClient(fn, delay = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+function renderTablePagination(containerId, total, page, pageSize, onPage, onPageSize) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const start = total ? (page - 1) * pageSize + 1 : 0;
+  const end = Math.min(page * pageSize, total);
+  container.innerHTML = `
+    <div class="table-page-summary">${start}–${end} / ${total}</div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="small text-muted" for="${containerId}-size">Dòng/trang</label>
+      <select id="${containerId}-size" class="form-select form-select-sm table-page-size" aria-label="Số dòng mỗi trang">
+        ${[10,20,50].map(size => `<option value="${size}" ${size === pageSize ? 'selected' : ''}>${size}</option>`).join('')}
+      </select>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-page="prev" aria-label="Trang trước" ${page <= 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>
+      <span class="small text-nowrap">${page} / ${pages}</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-page="next" aria-label="Trang sau" ${page >= pages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>
+    </div>`;
+  container.querySelector('[data-page="prev"]')?.addEventListener('click', () => onPage(page - 1));
+  container.querySelector('[data-page="next"]')?.addEventListener('click', () => onPage(page + 1));
+  container.querySelector('select')?.addEventListener('change', e => onPageSize(Number(e.target.value)));
+}
+
+function renderSinhVienTable() {
+  const table = document.getElementById('svTable');
   if (!table) return;
-  table.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Đang tải...</td></tr>';
-  try {
-  await fillKhoaSelects();
   const role = localStorage.getItem('role');
+  const lop = (document.getElementById('filterLop')?.value || '').trim().toLocaleLowerCase('vi');
+  const q = (document.getElementById('filterQ')?.value || '').trim().toLocaleLowerCase('vi');
+  const rows = _sinhVienRows.filter(sv => {
+    const matchesClass = !lop || (sv.LopSinhHoat || '').toLocaleLowerCase('vi') === lop;
+    const haystack = `${sv.Id || ''} ${sv.HoTen || ''} ${sv.Email || ''}`.toLocaleLowerCase('vi');
+    return matchesClass && (!q || haystack.includes(q));
+  });
+  const count = document.getElementById('svCount');
+  if (count) count.textContent = `Tổng ${_sinhVienRows.length} sinh viên · ${rows.length} kết quả`;
+
+  const pages = Math.max(1, Math.ceil(rows.length / _sinhVienPageSize));
+  _sinhVienPage = Math.min(_sinhVienPage, pages);
+  const visible = rows.slice((_sinhVienPage - 1) * _sinhVienPageSize, _sinhVienPage * _sinhVienPageSize);
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted"><i class="bi bi-search me-1"></i>${_sinhVienLoaded ? 'Không có sinh viên phù hợp với bộ lọc.' : 'Chưa có sinh viên.'}</td></tr>`;
+  } else {
+    table.innerHTML = visible.map(sv => {
+      const adminActions = role === 'admin' ? `
+        <button class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Chỉnh sửa" aria-label="Chỉnh sửa sinh viên" onclick="editSv('${sv.Id}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Xóa" aria-label="Xóa sinh viên" onclick="xoaSv('${sv.Id}')"><i class="bi bi-trash"></i></button>` : '';
+      return `<tr>
+        <td><code>${sv.Id}</code></td><td>${sv.HoTen}</td><td>${sv.LopSinhHoat || ''}</td>
+        <td>${sv.TenKhoa || sv.MaKhoa || ''}</td>
+        <td><span class="badge bg-secondary">${sv.TrangThai || 'Đang học'}</span></td>
+        <td class="text-end"><div class="table-actions">
+          <button class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Xem hồ sơ" aria-label="Xem hồ sơ sinh viên" onclick="xemSv('${sv.Id}')"><i class="bi bi-eye"></i></button>
+          ${adminActions}
+        </div></td>
+      </tr>`;
+    }).join('');
+    table.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
+  }
+  renderTablePagination('svPagination', rows.length, _sinhVienPage, _sinhVienPageSize,
+    page => { _sinhVienPage = page; renderSinhVienTable(); },
+    size => { _sinhVienPageSize = size; _sinhVienPage = 1; renderSinhVienTable(); });
+}
+
+const debouncedFilterSinhVien = debounceClient(() => {
+  _sinhVienPage = 1;
+  renderSinhVienTable();
+});
+
+async function loadSinhVien() {
+  const table = document.getElementById('svTable');
+  if (!table) return;
+  table.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Đang tải danh sách sinh viên...</td></tr>';
+  const count = document.getElementById('svCount');
+  if (count) count.textContent = 'Đang tải danh sách...';
   const addBtn = document.querySelector('button[data-bs-target="#modalSinhVien"]');
-  if (addBtn) addBtn.style.display = (role === 'admin') ? '' : 'none';
-
-  const lop = document.getElementById("filterLop")?.value || "";
-  const q = document.getElementById("filterQ")?.value || "";
-  const qs = new URLSearchParams();
-  if (lop) qs.set("lop", lop);
-  if (q) qs.set("q", q);
-  const list = await api("/api/SinhVien?" + qs.toString());
-  table.innerHTML = list.map(sv => {
-    const adminActions = role === 'admin' ? `
-        <button class="btn btn-sm btn-outline-success" onclick="editSv('${sv.Id}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="xoaSv('${sv.Id}')"><i class="bi bi-trash"></i></button>` : '';
-
-    return `
-    <tr>
-      <td><code>${sv.Id}</code></td>
-      <td>${sv.HoTen}</td>
-      <td>${sv.LopSinhHoat || ""}</td>
-      <td>${sv.TenKhoa || sv.MaKhoa || ""}</td>
-      <td><span class="badge bg-secondary">${sv.TrangThai || "Đang học"}</span></td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary" onclick="xemSv('${sv.Id}')"><i class="bi bi-eye"></i></button>
-        ${adminActions}
-      </td>
-    </tr>`;
-  }).join("") || '<tr><td colspan="6" class="text-center py-4 text-muted">Không có sinh viên phù hợp.</td></tr>';
+  if (addBtn) addBtn.style.display = localStorage.getItem('role') === 'admin' ? '' : 'none';
+  try {
+    _sinhVienRows = await api('/api/SinhVien');
+    _sinhVienLoaded = true;
+    _sinhVienPage = 1;
+    renderSinhVienTable();
   } catch (e) {
-    table.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-danger">Không tải được dữ liệu sinh viên: ${e.message || 'Lỗi máy chủ'}</td></tr>`;
+    table.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-danger">Không tải được danh sách sinh viên.<br/><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadSinhVien()"><i class="bi bi-arrow-clockwise me-1"></i>Thử lại</button></td></tr>`;
+    if (count) count.textContent = 'Không tải được dữ liệu';
     toast('Không tải được danh sách sinh viên: ' + (e.message || 'Lỗi máy chủ'), 'danger');
   }
 }
@@ -333,22 +497,21 @@ async function editSv(id) {
 }
 
 async function xemSv(id) {
-  const sv = await api("/api/SinhVien/" + id);
+  const detailEl = document.getElementById('svDetail');
+  showPage('chitiet');
+  detailEl.innerHTML = `<button class="btn btn-outline-secondary btn-sm mb-3" onclick="showPage('list')"><i class="bi bi-arrow-left me-1"></i>Quay lại danh sách</button>
+    <div class="card"><div class="card-body text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2" role="status"></span>Đang tải hồ sơ sinh viên...</div></div>`;
+  let sv;
+  try {
+    sv = await api("/api/SinhVien/" + id);
+  } catch (error) {
+    detailEl.innerHTML = `<button class="btn btn-outline-secondary btn-sm mb-3" onclick="showPage('list')"><i class="bi bi-arrow-left me-1"></i>Quay lại danh sách</button>
+      <div class="alert alert-danger">Không tải được hồ sơ sinh viên. <button class="btn btn-sm btn-outline-danger ms-2" onclick="xemSv('${id}')">Thử lại</button></div>`;
+    return;
+  }
   let hocluc = null;
   try { hocluc = await api("/api/SinhVien/" + id + "/hocluc"); } catch { /* empty bangdiem */ }
-  const rows = (sv.BangDiem || []).map(b => `
-    <tr>
-      <td>${b.MaMon}</td>
-      <td>${b.TenMon}</td>
-      <td>${b.SoTinChi}</td>
-      <td>${b.GiangVien?.HoTen || b.GiangVien?.TenGV || ""}</td>
-      <td>${b.DiemThanhPhan?.ChuyenCan ?? ""}</td>
-      <td>${b.DiemThanhPhan?.GiuaKy ?? ""}</td>
-      <td>${b.DiemThanhPhan?.ThucHanh ?? ""}</td>
-      <td>${b.DiemThanhPhan?.CuoiKy ?? ""}</td>
-      <td><b>${b.DiemTongKet}</b> (${b.DiemChu})</td>
-    </tr>`).join("");
-  const detailEl = document.getElementById("svDetail");
+  const grades = sv.BangDiem || [];
   detailEl.innerHTML = `
     <button class="btn btn-outline-secondary btn-sm mb-3" onclick="showPage('list')">
       <i class="bi bi-arrow-left me-1"></i> Quảy lại danh sách
@@ -367,13 +530,37 @@ async function xemSv(id) {
         </div>
       </div>
     </div>
-    <div class="table-responsive mt-3">
-      <table class="table table-sm table-bordered">
-        <thead><tr><th>Mã</th><th>Môn</th><th>TC</th><th>GV</th><th>CC</th><th>GK</th><th>TH</th><th>CK</th><th>Tổng</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="9" class="text-center text-muted">Chưa có điểm</td></tr>'}</tbody>
-      </table>
+    <div class="table-scroll-card mt-3">
+      <div class="table-responsive table-scroll-area">
+        <table class="table table-sm table-bordered table-hover mb-0">
+          <thead class="table-light"><tr><th>Mã</th><th>Môn</th><th class="text-end">TC</th><th>GV</th><th class="text-end">CC</th><th class="text-end">GK</th><th class="text-end">TH</th><th class="text-end">CK</th><th class="text-end">Tổng</th></tr></thead>
+          <tbody id="svDetailGrades"></tbody>
+        </table>
+      </div>
+      <div id="svDetailPagination" class="table-pagination"></div>
     </div>`;
+  renderStudentDetailGrades(grades);
   showPage("chitiet");
+}
+
+let _svDetailPage = 1;
+let _svDetailPageSize = 10;
+function renderStudentDetailGrades(grades) {
+  const body = document.getElementById('svDetailGrades');
+  if (!body) return;
+  const pages = Math.max(1, Math.ceil(grades.length / _svDetailPageSize));
+  _svDetailPage = Math.min(_svDetailPage, pages);
+  const visible = grades.slice((_svDetailPage - 1) * _svDetailPageSize, _svDetailPage * _svDetailPageSize);
+  body.innerHTML = visible.length ? visible.map(b => `<tr>
+    <td>${b.MaMon}</td><td>${b.TenMon}</td><td class="text-end">${b.SoTinChi}</td>
+    <td>${b.GiangVien?.HoTen || b.GiangVien?.TenGV || ''}</td>
+    <td class="text-end">${b.DiemThanhPhan?.ChuyenCan ?? ''}</td><td class="text-end">${b.DiemThanhPhan?.GiuaKy ?? ''}</td>
+    <td class="text-end">${b.DiemThanhPhan?.ThucHanh ?? ''}</td><td class="text-end">${b.DiemThanhPhan?.CuoiKy ?? ''}</td>
+    <td class="text-end"><b>${b.DiemTongKet}</b> (${b.DiemChu})</td></tr>`).join('')
+    : '<tr><td colspan="9" class="text-center text-muted py-3">Chưa có điểm.</td></tr>';
+  renderTablePagination('svDetailPagination', grades.length, _svDetailPage, _svDetailPageSize,
+    page => { _svDetailPage = page; renderStudentDetailGrades(grades); },
+    size => { _svDetailPageSize = size; _svDetailPage = 1; renderStudentDetailGrades(grades); });
 }
 
 function openCreateSv() {
@@ -406,6 +593,21 @@ function toggleCreateStudentAccount() {
 }
 
 async function saveSinhVien(e) {
+  e.preventDefault();
+  const form = e.currentTarget;
+  clearModalError('modalSinhVien');
+  if (!validateClientForm(form)) return;
+  const saveButton = form.querySelector('[type="submit"]');
+  if (saveButton?.disabled) return;
+  if (saveButton) saveButton.disabled = true;
+  try {
+    await saveSinhVienCore(e);
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+}
+
+async function saveSinhVienCore(e) {
   e.preventDefault();
   clearModalError("modalSinhVien");
 
@@ -480,7 +682,7 @@ async function saveSinhVien(e) {
 }
 
 async function xoaSv(id) {
-  if (!confirm("Xóa " + id + "?")) return;
+  if (!await confirmAction(`Xóa sinh viên ${id}?`, { title: 'Xóa sinh viên', confirmText: 'Xóa', variant: 'danger' })) return;
   await api("/api/SinhVien/" + id, { method: "DELETE" });
   toast("Đã xóa " + id, "warning");
   loadSinhVien();
@@ -616,6 +818,28 @@ function openCreateLhp() {
 
 async function saveLhp(e) {
   e.preventDefault();
+  const form = e.currentTarget;
+  clearModalError('modalLhp');
+  if (!validateClientForm(form)) return;
+  const saveButton = form.querySelector('[type="submit"]');
+  if (saveButton?.disabled) return;
+  const originalHtml = saveButton?.innerHTML;
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Đang lưu...';
+  }
+  try {
+    await saveLhpCore(e);
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.innerHTML = originalHtml;
+    }
+  }
+}
+
+async function saveLhpCore(e) {
+  e.preventDefault();
   clearModalError("modalLhp");
 
   const oldId   = document.getElementById("lhpIsEdit").value;
@@ -634,11 +858,25 @@ async function saveLhp(e) {
 
   if (!maKhoa) {
     showModalError("modalLhp", "Vui lòng chọn khoa.");
+    document.getElementById('lhpKhoaDropdown').classList.add('is-invalid');
+    document.getElementById('lhpKhoaFeedback').classList.add('d-block');
+    document.getElementById('lhpKhoaDropdown').focus();
     return;
   }
 
   if (!maGv || !tenGv) {
     showModalError("modalLhp", "Vui lòng chọn giảng viên.");
+    document.getElementById('lhpGvDropdown').classList.add('is-invalid');
+    document.getElementById('lhpGvFeedback').classList.add('d-block');
+    document.getElementById('lhpGvDropdown').focus();
+    return;
+  }
+
+  if (!document.getElementById('lhpMaMon').value) {
+    showModalError("modalLhp", "Vui lòng chọn môn học.");
+    document.getElementById('lhpMonDropdown').classList.add('is-invalid');
+    document.getElementById('lhpMonFeedback').classList.add('d-block');
+    document.getElementById('lhpMonDropdown').focus();
     return;
   }
 
@@ -655,6 +893,8 @@ async function saveLhp(e) {
     try {
       await api("/api/LopHocPhan/" + encodeURIComponent(newId));
       showModalError("modalLhp", `Mã LHP "${newId}" đã tồn tại. Vui lòng chọn mã khác.`);
+      const feedback = idField.parentElement.querySelector('.invalid-feedback');
+      if (feedback) feedback.textContent = 'Mã lớp học phần đã tồn tại. Vui lòng chọn mã khác.';
       idField.classList.add("is-invalid"); idField.focus(); return;
     } catch { /* 404 = chưa tồn tại */ }
   }
@@ -702,7 +942,7 @@ async function saveLhp(e) {
 }
 
 async function xoaLhp(id) {
-  if (!confirm("Xóa " + id + "?")) return;
+  if (!await confirmAction(`Xóa lớp học phần ${id}?`, { title: 'Xóa lớp học phần', confirmText: 'Xóa', variant: 'danger' })) return;
   await api("/api/LopHocPhan/" + id, { method: "DELETE" });
   loadLhp();
 }
@@ -714,6 +954,11 @@ function chamDiemLhp(maLhp) {
 
 // Cache danh sách SV đã tải để lọc client-side
 let _diemSvCache = [];
+let _diemPage = 1;
+let _diemPageSize = 10;
+let _transcriptCache = [];
+let _transcriptPage = 1;
+let _transcriptPageSize = 10;
 let _currentFilterLhp = '';
 let _scoreEditableLhpIds = new Set();
 
@@ -794,6 +1039,7 @@ async function loadStudentTranscript(svId) {
   document.getElementById('svGpa10').textContent = hocluc ? Number(hocluc.GPA).toFixed(2) : '0.00';
   document.getElementById('svXepLoaiBadge').innerHTML = hocluc ? xepLoaiBadge(hocluc.XepLoai) : '<span class="badge bg-secondary">Chưa đủ dữ liệu</span>';
 
+  _transcriptCache = bangDiem;
   document.getElementById('svTranscriptTableBody').innerHTML = bangDiem.length ? bangDiem.map(b => `
     <tr>
       <td class="text-center"><code>${b.MaLHP}</code></td>
@@ -809,6 +1055,7 @@ async function loadStudentTranscript(svId) {
       <td class="text-center">${Number(b.DiemTongKet || 0) >= 4 ? '<span class="badge bg-success">Đạt</span>' : '<span class="badge bg-danger">Chưa đạt</span>'}</td>
     </tr>`).join('') : '<tr><td colspan="11" class="text-center py-4 text-muted">Chưa có môn học nào.</td></tr>';
 
+  applyTranscriptPage();
   const cloRows = [];
   bangDiem.forEach(b => {
     (b.DiemCLO || []).forEach(clo => cloRows.push(`
@@ -819,25 +1066,22 @@ async function loadStudentTranscript(svId) {
 
 // Lọc bảng điểm sinh viên theo từ khóa
 function filterSvTranscriptTable() {
-  const searchText = document.getElementById('svTranscriptSearch')?.value.toLowerCase().trim() || '';
+  _transcriptPage = 1;
+  applyTranscriptPage();
+}
+
+function applyTranscriptPage() {
   const tbody = document.getElementById('svTranscriptTableBody');
   if (!tbody) return;
-
-  const rows = tbody.querySelectorAll('tr');
-  rows.forEach(row => {
-    if (row.cells.length <= 1) return; // Skip empty/loading rows
-    
-    const maLhp = row.cells[0]?.textContent?.toLowerCase() || '';
-    const tenMon = row.cells[1]?.textContent?.toLowerCase() || '';
-    const maMon = row.cells[1]?.querySelector('small')?.textContent?.toLowerCase() || '';
-    
-    const isVisible = !searchText || 
-      maLhp.includes(searchText) || 
-      tenMon.includes(searchText) || 
-      maMon.includes(searchText);
-    
-    row.style.display = isVisible ? '' : 'none';
-  });
+  const query = (document.getElementById('svTranscriptSearch')?.value || '').trim().toLocaleLowerCase('vi');
+  const rows = [...tbody.querySelectorAll('tr')].filter(row => row.cells.length > 1);
+  const filtered = rows.filter(row => !query || row.textContent.toLocaleLowerCase('vi').includes(query));
+  const pages = Math.max(1, Math.ceil(filtered.length / _transcriptPageSize));
+  _transcriptPage = Math.min(_transcriptPage, pages);
+  rows.forEach(row => row.hidden = true);
+  filtered.slice((_transcriptPage - 1) * _transcriptPageSize, _transcriptPage * _transcriptPageSize).forEach(row => row.hidden = false);
+  renderTablePagination('svTranscriptPagination', filtered.length, _transcriptPage, _transcriptPageSize,
+    page => { _transcriptPage = page; applyTranscriptPage(); }, size => { _transcriptPageSize = size; _transcriptPage = 1; applyTranscriptPage(); });
 }
 
 async function loadDiemSvList(refLhp) {
@@ -920,7 +1164,7 @@ function filterDiemTable() {
   renderDiemSvTable(filtered);
 }
 
-function renderDiemSvTable(list) {
+function renderDiemSvTableCore(list) {
   const role = localStorage.getItem('role');
   const tbody = document.getElementById('diemSvTableBody');
   const countEl = document.getElementById('diemSvCount');
@@ -1159,7 +1403,7 @@ async function submitPushDiemModal(e) {
       body: JSON.stringify(body)
     });
     bootstrap.Modal.getInstance(document.getElementById('modalPushDiem')).hide();
-    toast(`Đã thêm môn "${body.TenMon}" vào bảng điểm của ${svId} ($push thành công)`);
+    toast(`Đã thêm môn "${body.TenMon}" vào bảng điểm của ${svId}.`);
     loadDiemSvList();
     openChiTietDiem(svId);
   } catch (err) {
@@ -1202,7 +1446,7 @@ async function submitEditDiemModal(e) {
       cleanupModalBackdrop();
       openChiTietDiem(svId);
     }, { once: true });
-    toast(`Đã cập nhật điểm môn ${maLhp} ($set + arrayFilters thành công)`);
+    toast(`Đã cập nhật điểm môn ${maLhp}.`);
     loadDiemSvList();
   } catch (err) {
     toast("Lỗi khi sửa điểm: " + err.message, "danger");
@@ -1210,12 +1454,12 @@ async function submitEditDiemModal(e) {
 }
 
 async function xoaMonKhoiBangDiem(svId, maLhp, tenMon) {
-  if (!confirm(`Bạn có chắc chắn muốn xóa môn "${tenMon}" (${maLhp}) khỏi bảng điểm của sinh viên ${svId}?`)) return;
+  if (!await confirmAction(`Xóa môn "${tenMon}" (${maLhp}) khỏi bảng điểm của sinh viên ${svId}?`, { title: 'Xóa môn khỏi bảng điểm', confirmText: 'Xóa', variant: 'danger' })) return;
   try {
     await api(`/api/SinhVien/${encodeURIComponent(svId)}/diem/${encodeURIComponent(maLhp)}`, {
       method: "DELETE"
     });
-    toast(`Đã xóa môn "${tenMon}" khỏi bảng điểm ($pull thành công)`);
+    toast(`Đã xóa môn "${tenMon}" khỏi bảng điểm.`);
     loadDiemSvList();
     openChiTietDiem(svId);
   } catch (err) {
@@ -1258,6 +1502,35 @@ async function fillLhpSelect(maKhoa) {
   if (p1) p1.innerHTML = options;
   const p2 = document.getElementById("modalPushLhp");
   if (p2) p2.innerHTML = options;
+}
+
+// Table paging and debounced client filtering for the grading views.
+const _renderDiemSvTableAll = renderDiemSvTableCore;
+let _diemSearchTimer;
+function filterDiemTable() {
+  clearTimeout(_diemSearchTimer);
+  _diemSearchTimer = setTimeout(() => {
+    _diemPage = 1;
+    const q = (document.getElementById('diemSearchText')?.value || '').trim().toLocaleLowerCase('vi');
+    const rows = _diemSvCache.filter(s => `${s.Id || ''} ${s.HoTen || ''}`.toLocaleLowerCase('vi').includes(q));
+    renderDiemSvTable(rows);
+  }, 180);
+}
+function renderDiemSvTable(list) {
+  const count = document.getElementById('diemSvCount');
+  if (count) count.textContent = `${list.length}/${_diemSvCache.length} sinh viên`;
+  const size = _diemPageSize;
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  _diemPage = Math.min(_diemPage, pages);
+  const pageItems = list.slice((_diemPage - 1) * size, _diemPage * size);
+  _renderDiemSvTableAll(pageItems);
+  if (count) count.textContent = `${list.length}/${_diemSvCache.length} sinh viên`;
+  renderTablePagination('diemSvPagination', list.length, _diemPage, size,
+    page => { _diemPage = page; filterDiemTableNow(); }, pageSize => { _diemPageSize = pageSize; _diemPage = 1; filterDiemTableNow(); });
+}
+function filterDiemTableNow() {
+  const q = (document.getElementById('diemSearchText')?.value || '').trim().toLocaleLowerCase('vi');
+  renderDiemSvTable(_diemSvCache.filter(s => `${s.Id || ''} ${s.HoTen || ''}`.toLocaleLowerCase('vi').includes(q)));
 }
 
 async function loadBaoCao() {
@@ -1474,20 +1747,23 @@ async function importSv() {
 
 // ==================== QUẢN LÝ TÀI KHOẢN (ADMIN) ====================
 let _accountCache = [];
+let _accountPage = 1;
+let _accountPageSize = 10;
 
 async function loadAccounts() {
-  const role = document.getElementById('accFilterRole')?.value || '';
-  const q = document.getElementById('accSearchText')?.value?.trim() || '';
-  const qs = new URLSearchParams();
-  if (role) qs.set('role', role);
-  if (q) qs.set('q', q);
+  const body = document.getElementById('accTableBody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Đang tải danh sách tài khoản...</td></tr>';
+  const count = document.getElementById('accCountBadge');
+  if (count) count.textContent = 'Đang tải danh sách...';
   try {
-    const list = await api('/api/TaiKhoan?' + qs.toString());
-    _accountCache = list;
-    renderAccounts(list);
+    _accountCache = await api('/api/TaiKhoan');
+    _accountPage = 1;
+    renderAccounts();
   } catch (err) {
-    const body = document.getElementById('accTableBody');
-    if (body) body.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${err.message}</td></tr>`;
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Không tải được danh sách tài khoản.<br/><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadAccounts()"><i class="bi bi-arrow-clockwise me-1"></i>Thử lại</button></td></tr>';
+    if (count) count.textContent = 'Không tải được dữ liệu';
+    toast('Không tải được danh sách tài khoản: ' + err.message, 'danger');
   }
 }
 
@@ -1495,26 +1771,42 @@ function accountRoleBadge(role) {
   return role === 'admin' ? '<span class="badge bg-danger">Admin</span>' : role === 'giaovien' ? '<span class="badge bg-warning text-dark">Giáo viên</span>' : '<span class="badge bg-info text-dark">Sinh viên</span>';
 }
 
-function renderAccounts(list) {
+function renderAccounts() {
   const body = document.getElementById('accTableBody');
   const count = document.getElementById('accCountBadge');
   if (!body) return;
-  if (count) count.textContent = `${list.length} tài khoản`;
-  body.innerHTML = list.length ? list.map(a => `
-    <tr>
-      <td><code class="fw-semibold">${a.Id}</code></td>
-      <td>${a.HoTen}</td>
-      <td>${accountRoleBadge(a.Role)}</td>
-      <td>${a.RefId ? `<code>${a.RefId}</code>` : '<span class="text-muted">—</span>'}</td>
-      <td class="text-center">${a.IsActive ? '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Hoạt động</span>' : '<span class="badge bg-secondary"><i class="bi bi-lock me-1"></i>Đã khóa</span>'}</td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" onclick="openModalEditAccount('${a.Id}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm ${a.IsActive ? 'btn-outline-warning' : 'btn-outline-success'} me-1" onclick="toggleAccountStatus('${a.Id}', ${!a.IsActive})" title="${a.IsActive ? 'Khóa' : 'Kích hoạt'}"><i class="bi ${a.IsActive ? 'bi-lock' : 'bi-unlock'}"></i></button>
-        <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount('${a.Id}')"><i class="bi bi-trash"></i></button>
-      </td>
-    </tr>`).join('') : '<tr><td colspan="6" class="text-center py-4 text-muted">Không có tài khoản.</td></tr>';
+  const role = document.getElementById('accFilterRole')?.value || '';
+  const q = (document.getElementById('accSearchText')?.value || '').trim().toLocaleLowerCase('vi');
+  const list = _accountCache.filter(a => {
+    const roleMatch = !role || a.Role === role;
+    const haystack = (a.Id || '') + ' ' + (a.HoTen || '') + ' ' + (a.RefId || '');
+    return roleMatch && (!q || haystack.toLocaleLowerCase('vi').includes(q));
+  });
+  if (count) count.textContent = 'Tổng ' + _accountCache.length + ' tài khoản · ' + list.length + ' kết quả';
+  const pages = Math.max(1, Math.ceil(list.length / _accountPageSize));
+  _accountPage = Math.min(_accountPage, pages);
+  const visible = list.slice((_accountPage - 1) * _accountPageSize, _accountPage * _accountPageSize);
+  body.innerHTML = visible.length ? visible.map(a =>
+    '<tr><td><code class="fw-semibold">' + a.Id + '</code></td>' +
+    '<td>' + a.HoTen + '</td><td>' + accountRoleBadge(a.Role) + '</td>' +
+    '<td>' + (a.RefId ? '<code>' + a.RefId + '</code>' : '<span class="text-muted">—</span>') + '</td>' +
+    '<td>' + (a.IsActive ? '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Hoạt động</span>' : '<span class="badge bg-secondary"><i class="bi bi-lock me-1"></i>Đã khóa</span>') + '</td>' +
+    '<td class="text-end"><div class="table-actions">' +
+    '<button class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" data-account-action="edit" data-account-id="' + encodeURIComponent(a.Id) + '" title="Chỉnh sửa" aria-label="Chỉnh sửa tài khoản"><i class="bi bi-pencil"></i></button>' +
+    '<button class="btn btn-sm ' + (a.IsActive ? 'btn-outline-warning' : 'btn-outline-success') + '" data-bs-toggle="tooltip" data-account-action="status" data-account-id="' + encodeURIComponent(a.Id) + '" data-active-next="' + (!a.IsActive) + '" title="' + (a.IsActive ? 'Vô hiệu hóa' : 'Kích hoạt') + '" aria-label="' + (a.IsActive ? 'Vô hiệu hóa' : 'Kích hoạt') + ' tài khoản"><i class="bi ' + (a.IsActive ? 'bi-lock' : 'bi-unlock') + '"></i></button>' +
+    '<button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" data-account-action="delete" data-account-id="' + encodeURIComponent(a.Id) + '" title="Xóa" aria-label="Xóa tài khoản"><i class="bi bi-trash"></i></button>' +
+    '</div></td></tr>'
+  ).join('') : '<tr><td colspan="6" class="text-center py-4 text-muted">Không có tài khoản phù hợp.</td></tr>';
+  body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
+  body.querySelectorAll('[data-account-action="edit"]').forEach(el => el.addEventListener('click', () => openModalEditAccount(decodeURIComponent(el.dataset.accountId))));
+  body.querySelectorAll('[data-account-action="status"]').forEach(el => el.addEventListener('click', () => toggleAccountStatus(decodeURIComponent(el.dataset.accountId), el.dataset.activeNext === 'true')));
+  body.querySelectorAll('[data-account-action="delete"]').forEach(el => el.addEventListener('click', () => deleteAccount(decodeURIComponent(el.dataset.accountId))));
+  renderTablePagination('accPagination', list.length, _accountPage, _accountPageSize,
+    page => { _accountPage = page; renderAccounts(); },
+    size => { _accountPageSize = size; _accountPage = 1; renderAccounts(); });
 }
 
+const debouncedFilterAccounts = debounceClient(() => { _accountPage = 1; renderAccounts(); });
 function openModalCreateAccount() {
   document.getElementById('modalAccountTitle').innerHTML = '<i class="bi bi-person-plus-fill me-1"></i> Thêm tài khoản';
   document.getElementById('accIsEdit').value = '';
@@ -1550,6 +1842,15 @@ async function openModalEditAccount(id) {
 
 async function submitSaveAccount(e) {
   e.preventDefault();
+  const form = e.currentTarget;
+  if (!validateClientForm(form)) return;
+  const saveButton = document.getElementById('accSaveBtn');
+  if (saveButton?.disabled) return;
+  const saveButtonHtml = saveButton?.innerHTML;
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Đang lưu...';
+  }
   const id = document.getElementById('accUsername').value.trim();
   const oldId = document.getElementById('accIsEdit').value;
   const payload = {
@@ -1566,16 +1867,22 @@ async function submitSaveAccount(e) {
     toast(oldId ? 'Đã cập nhật tài khoản.' : 'Đã tạo tài khoản mới.');
     loadAccounts();
   } catch (err) { toast('Lỗi lưu tài khoản: ' + err.message, 'danger'); }
+  finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.innerHTML = saveButtonHtml;
+    }
+  }
 }
 
 async function toggleAccountStatus(id, isActive) {
-  if (!confirm(isActive ? `Kích hoạt tài khoản ${id}?` : `Vô hiệu hóa tài khoản ${id}?`)) return;
+  if (!await confirmAction(isActive ? `Kích hoạt tài khoản ${id}?` : `Vô hiệu hóa tài khoản ${id}?`, { title: isActive ? 'Kích hoạt tài khoản' : 'Vô hiệu hóa tài khoản', confirmText: isActive ? 'Kích hoạt' : 'Vô hiệu hóa', variant: isActive ? 'primary' : 'danger' })) return;
   try { await api('/api/TaiKhoan/' + encodeURIComponent(id) + '/status', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(isActive)}); toast(isActive ? 'Đã kích hoạt tài khoản.' : 'Đã khóa tài khoản.'); loadAccounts(); }
   catch (err) { toast(err.message, 'danger'); }
 }
 
 async function deleteAccount(id) {
-  if (!confirm(`Xóa vĩnh viễn tài khoản ${id}? Thao tác này không thể hoàn tác.`)) return;
+  if (!await confirmAction(`Xóa vĩnh viễn tài khoản ${id}? Thao tác này không thể hoàn tác.`, { title: 'Xóa tài khoản', confirmText: 'Xóa vĩnh viễn', variant: 'danger' })) return;
   try { await api('/api/TaiKhoan/' + encodeURIComponent(id), {method:'DELETE'}); toast('Đã xóa tài khoản.', 'warning'); loadAccounts(); }
   catch (err) { toast(err.message, 'danger'); }
 }
@@ -1621,7 +1928,7 @@ function filterOpenLhp() {
   renderOpenLhp(_openLhpCache.filter(l => [l.Id, l.MaMon, l.TenMon, getTeacherName(l.GiangVien)].some(v => (v || '').toLowerCase().includes(q))));
 }
 
-function renderOpenLhp(list) {
+function renderOpenLhpCore(list) {
   const body = document.getElementById('openLhpTableBody');
   if (!body) return;
   body.innerHTML = list.length ? list.map(l => {
@@ -1632,14 +1939,79 @@ function renderOpenLhp(list) {
 }
 
 async function dangKyHocPhan(maLhp, tenMon) {
-  if (!confirm(`Đăng ký môn ${tenMon} (${maLhp})?`)) return;
+  if (!await confirmAction(`Đăng ký môn ${tenMon} (${maLhp})?`, { title: 'Đăng ký học phần', confirmText: 'Đăng ký' })) return;
   try { await api('/api/SinhVien/dangky/' + encodeURIComponent(maLhp), {method:'POST'}); toast('Đăng ký học phần thành công.'); loadDangKyHocPhanPage(); }
   catch (err) { toast(err.message, 'danger'); }
 }
 
 async function huyDangKy(maLhp, tenMon) {
-  if (!confirm(`Hủy đăng ký môn ${tenMon}?`)) return;
+  if (!await confirmAction(`Hủy đăng ký môn ${tenMon}?`, { title: 'Hủy đăng ký', confirmText: 'Hủy đăng ký', variant: 'danger' })) return;
   try { await api('/api/SinhVien/huydangky/' + encodeURIComponent(maLhp), {method:'DELETE'}); toast('Đã hủy đăng ký.', 'warning'); loadDangKyHocPhanPage(); }
   catch (err) { toast(err.message, 'danger'); }
 }
+
+const _renderOpenLhpOriginal = renderOpenLhpCore;
+let _openLhpPage = 1, _openLhpPageSize = 10, _openLhpTimer;
+function filterOpenLhp() {
+  clearTimeout(_openLhpTimer);
+  _openLhpTimer = setTimeout(() => {
+    const q = (document.getElementById('searchLhpOpen')?.value || '').trim().toLocaleLowerCase('vi');
+    const semester = document.getElementById('semesterFilter')?.value || '';
+    const list = _openLhpCache.filter(l => (!semester || `${l.Hocky} ${l.NamHoc}` === semester) &&
+      [l.Id, l.MaMon, l.TenMon, getTeacherName(l.GiangVien)].some(v => (v || '').toLocaleLowerCase('vi').includes(q)));
+    _openLhpPage = 1;
+    renderOpenLhp(list);
+  }, 180);
+}
+function renderOpenLhp(list) {
+  const size = _openLhpPageSize;
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  _openLhpPage = Math.min(_openLhpPage, pages);
+  const page = list.slice((_openLhpPage - 1) * size, _openLhpPage * size);
+  _renderOpenLhpOriginal(page);
+  document.querySelectorAll('#openLhpTableBody tr').forEach(row => {
+    const capacityCell = row.cells[5];
+    if (!capacityCell || capacityCell.querySelector('.progress')) return;
+    const match = capacityCell.textContent.match(/(\d+)\s*\/\s*(\d+)/);
+    if (!match) return;
+    const used = Number(match[1]), max = Number(match[2]);
+    const pct = max ? Math.min(100, Math.round(used / max * 100)) : 0;
+    capacityCell.insertAdjacentHTML('beforeend', `<div class="progress mt-1" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar ${pct >= 100 ? 'bg-danger' : ''}" style="width:${pct}%"></div></div>`);
+  });
+  const semesters = [...new Set(_openLhpCache.map(l => `${l.Hocky} ${l.NamHoc}`))].sort();
+  const select = document.getElementById('semesterFilter');
+  if (select && select.options.length === 1) select.insertAdjacentHTML('beforeend', semesters.map(v => `<option>${v}</option>`).join(''));
+  renderTablePagination('openLhpPagination', list.length, _openLhpPage, size,
+    pageNo => { _openLhpPage = pageNo; filterOpenLhpNow(); }, pageSize => { _openLhpPageSize = pageSize; _openLhpPage = 1; filterOpenLhpNow(); });
+}
+function filterOpenLhpNow() {
+  const q = (document.getElementById('searchLhpOpen')?.value || '').trim().toLocaleLowerCase('vi');
+  const semester = document.getElementById('semesterFilter')?.value || '';
+  renderOpenLhp(_openLhpCache.filter(l => (!semester || `${l.Hocky} ${l.NamHoc}` === semester) &&
+    [l.Id, l.MaMon, l.TenMon, getTeacherName(l.GiangVien)].some(v => (v || '').toLocaleLowerCase('vi').includes(q))));
+}
+
+const _clientTableState = new Map();
+function observeClientTable(tbodyId, pagerId, searchId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const state = { page: 1, size: 10, busy: false };
+  _clientTableState.set(tbodyId, state);
+  const update = () => {
+    if (state.busy) return;
+    const query = (document.getElementById(searchId)?.value || '').trim().toLocaleLowerCase('vi');
+    const rows = [...tbody.querySelectorAll('tr')].filter(row => row.cells.length > 1);
+    const shown = rows.filter(row => !query || row.textContent.toLocaleLowerCase('vi').includes(query));
+    state.page = Math.min(state.page, Math.max(1, Math.ceil(shown.length / state.size)));
+    rows.forEach(row => row.hidden = true);
+    shown.slice((state.page - 1) * state.size, state.page * state.size).forEach(row => row.hidden = false);
+    renderTablePagination(pagerId, shown.length, state.page, state.size,
+      page => { state.page = page; update(); }, size => { state.size = size; state.page = 1; update(); });
+  };
+  const observer = new MutationObserver(() => { state.page = 1; update(); });
+  state.update = update;
+  observer.observe(tbody, { childList: true });
+  setTimeout(update, 0);
+}
+function filterReportRows() { const state = _clientTableState.get('bcTable'); if (state) { state.page = 1; state.update(); } }
 
