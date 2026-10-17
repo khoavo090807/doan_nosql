@@ -65,6 +65,14 @@ public class ImportExportController : ControllerBase
 
         var importedCount = students.Count;
         var studentsToImport = students.GroupBy(x => x.Id).Select(x => x.Last()).ToList();
+        if (studentsToImport.Any(x => string.IsNullOrWhiteSpace(x.Id)))
+            return BadRequest("Mỗi hồ sơ trong JSON phải có mã sinh viên.");
+        foreach (var student in studentsToImport)
+        {
+            var ids = (student.BangDiem ?? new List<BangDiemMonHoc>()).Select(x => x.MaLHP).ToList();
+            if (ids.Count != ids.Distinct().Count())
+                return BadRequest($"Sinh viên {student.Id} có đăng ký lớp học phần trùng trong JSON.");
+        }
         var studentIds = studentsToImport.Select(x => x.Id).ToList();
         var oldStudents = await _db.SinhViens.Find(x => studentIds.Contains(x.Id)).ToListAsync();
         var oldById = oldStudents.ToDictionary(x => x.Id);
@@ -74,12 +82,25 @@ public class ImportExportController : ControllerBase
         {
             if (oldById.TryGetValue(student.Id, out var oldStudent))
             {
-                foreach (var enrollment in (oldStudent.BangDiem ?? new List<BangDiemMonHoc>()).GroupBy(x => x.MaLHP))
-                    enrollmentDeltas[enrollment.Key] = enrollmentDeltas.GetValueOrDefault(enrollment.Key) - enrollment.Count();
+                foreach (var maLhp in (oldStudent.BangDiem ?? new List<BangDiemMonHoc>()).Select(x => x.MaLHP).Distinct())
+                    enrollmentDeltas[maLhp] = enrollmentDeltas.GetValueOrDefault(maLhp) - 1;
             }
 
-            foreach (var enrollment in (student.BangDiem ?? new List<BangDiemMonHoc>()).GroupBy(x => x.MaLHP))
-                enrollmentDeltas[enrollment.Key] = enrollmentDeltas.GetValueOrDefault(enrollment.Key) + enrollment.Count();
+            foreach (var maLhp in (student.BangDiem ?? new List<BangDiemMonHoc>()).Select(x => x.MaLHP).Distinct())
+                enrollmentDeltas[maLhp] = enrollmentDeltas.GetValueOrDefault(maLhp) + 1;
+        }
+
+        var currentCounts = await _db.GetEnrollmentCountsAsync();
+        var touchedIds = enrollmentDeltas.Keys.ToList();
+        var touchedClasses = await _db.LopHocPhans.Find(x => touchedIds.Contains(x.Id)).ToListAsync();
+        var classById = touchedClasses.ToDictionary(x => x.Id);
+        foreach (var maLhp in touchedIds)
+        {
+            if (!classById.TryGetValue(maLhp, out var lhp))
+                return BadRequest($"Không tìm thấy lớp học phần {maLhp} trong dữ liệu JSON.");
+            var projected = currentCounts.GetValueOrDefault(maLhp) + enrollmentDeltas[maLhp];
+            if (projected > lhp.SiSoToiDa && projected > currentCounts.GetValueOrDefault(maLhp))
+                return Conflict($"Import sẽ vượt sĩ số tối đa lớp {maLhp}.");
         }
 
         var ops = studentsToImport.Select(sv =>
@@ -88,17 +109,17 @@ public class ImportExportController : ControllerBase
                 IsUpsert = true
             }).ToList();
 
-        var result = await _db.SinhViens.BulkWriteAsync(ops);
-        foreach (var delta in enrollmentDeltas.Where(x => x.Value != 0))
+        BulkWriteResult<SinhVien> result;
+        try
         {
-            var filter = Builders<LopHocPhan>.Filter.Eq(x => x.Id, delta.Key);
-            if (delta.Value < 0)
-                filter &= Builders<LopHocPhan>.Filter.Gte(x => x.SiSoHienTai, -delta.Value);
-
-            await _db.LopHocPhans.UpdateOneAsync(
-                filter,
-                Builders<LopHocPhan>.Update.Inc(x => x.SiSoHienTai, delta.Value));
+            result = await _db.SinhViens.BulkWriteAsync(ops);
         }
+        catch
+        {
+            await DongBoSiSoAsync(touchedIds);
+            throw;
+        }
+        await DongBoSiSoAsync(touchedIds);
 
         return Ok(new
         {
@@ -106,5 +127,14 @@ public class ImportExportController : ControllerBase
             upserted = result.Upserts.Count,
             modified = result.ModifiedCount
         });
+    }
+
+    private async Task DongBoSiSoAsync(IEnumerable<string> maLhpIds)
+    {
+        var actualCounts = await _db.GetEnrollmentCountsAsync();
+        foreach (var maLhp in maLhpIds)
+            await _db.LopHocPhans.UpdateOneAsync(
+                x => x.Id == maLhp,
+                Builders<LopHocPhan>.Update.Set(x => x.SiSoHienTai, actualCounts.GetValueOrDefault(maLhp)));
     }
 }
