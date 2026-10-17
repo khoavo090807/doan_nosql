@@ -51,7 +51,10 @@
           <label class="form-label small fw-semibold">Mật khẩu</label>
           <div class="input-group">
             <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
-            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required />
+            <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" autocomplete="current-password" required />
+            <button type="button" id="toggleLoginPassword" class="btn btn-outline-secondary" onclick="toggleLoginPasswordVisibility()" aria-label="Hiện mật khẩu" aria-pressed="false" title="Hiện mật khẩu">
+              <i id="loginPasswordEye" class="bi bi-eye" aria-hidden="true"></i>
+            </button>
           </div>
         </div>
         <button type="submit" id="loginBtn" class="btn btn-primary w-100 py-2 fw-semibold">
@@ -79,6 +82,19 @@
     if (token) {
       if (role === 'sinhvien') window.location.href = '/diem.html' + (refId ? '?mssv=' + refId : '');
       else window.location.href = '/';
+    }
+
+    function toggleLoginPasswordVisibility() {
+      const passwordInput = document.getElementById('loginPassword');
+      const toggleButton = document.getElementById('toggleLoginPassword');
+      const eyeIcon = document.getElementById('loginPasswordEye');
+      const showPassword = passwordInput.type === 'password';
+
+      passwordInput.type = showPassword ? 'text' : 'password';
+      toggleButton.setAttribute('aria-pressed', String(showPassword));
+      toggleButton.setAttribute('aria-label', showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+      toggleButton.title = showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu';
+      eyeIcon.className = showPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
     }
 
     async function handleLogin(e) {

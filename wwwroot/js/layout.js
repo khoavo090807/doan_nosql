@@ -7,6 +7,19 @@ function logout() {
   window.location.href = '/login.html';
 }
 
+function togglePasswordField(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (!input || !button) return;
+
+  const showPassword = input.type === 'password';
+  input.type = showPassword ? 'text' : 'password';
+  button.setAttribute('aria-pressed', String(showPassword));
+  button.setAttribute('aria-label', showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+  button.title = showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu';
+  const icon = button.querySelector('i');
+  if (icon) icon.className = showPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+
 function renderLayout(activePage) {
   if (document.body.dataset.layoutRendered === 'true') return;
   document.body.dataset.layoutRendered = 'true';
@@ -135,15 +148,24 @@ function renderLayout(activePage) {
               <div id="modalDoiMatKhau-error" class="alert alert-danger py-2 mb-3" style="display:none;"></div>
               <div class="mb-3">
                 <label class="form-label fw-semibold">Mật khẩu hiện tại <span class="text-danger">*</span></label>
-                <input type="password" id="dmkMatKhauCu" class="form-control" required placeholder="Nhập mật khẩu hiện tại" />
+                <div class="input-group">
+                  <input type="password" id="dmkMatKhauCu" class="form-control" autocomplete="current-password" required placeholder="Nhập mật khẩu hiện tại" />
+                  <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordField('dmkMatKhauCu', this)" aria-label="Hiện mật khẩu" aria-pressed="false" title="Hiện mật khẩu"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                </div>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-semibold">Mật khẩu mới <span class="text-danger">*</span></label>
-                <input type="password" id="dmkMatKhauMoi" class="form-control" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
+                <div class="input-group">
+                  <input type="password" id="dmkMatKhauMoi" class="form-control" autocomplete="new-password" required minlength="6" placeholder="Tối thiểu 6 ký tự" />
+                  <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordField('dmkMatKhauMoi', this)" aria-label="Hiện mật khẩu" aria-pressed="false" title="Hiện mật khẩu"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                </div>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-semibold">Xác nhận mật khẩu mới <span class="text-danger">*</span></label>
-                <input type="password" id="dmkXacNhanMatKhau" class="form-control" required placeholder="Nhập lại mật khẩu mới" />
+                <div class="input-group">
+                  <input type="password" id="dmkXacNhanMatKhau" class="form-control" autocomplete="new-password" required placeholder="Nhập lại mật khẩu mới" />
+                  <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordField('dmkXacNhanMatKhau', this)" aria-label="Hiện mật khẩu" aria-pressed="false" title="Hiện mật khẩu"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
