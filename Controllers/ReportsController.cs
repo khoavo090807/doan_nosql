@@ -45,6 +45,11 @@ public class ReportsController : ControllerBase
                 return Ok(new List<object>());
         }
 
+        var noPracticeCourseIds = await _db.MonHocs
+            .Find(x => x.ThucHanh <= 0)
+            .Project(x => x.Id)
+            .ToListAsync();
+
         var matchDoc = new BsonDocument();
         if (!string.IsNullOrWhiteSpace(lop))
         {
@@ -62,7 +67,7 @@ public class ReportsController : ControllerBase
             {
                 { "input", new BsonDocument("$ifNull", new BsonArray { "$BangDiem", new BsonArray() }) },
                 { "as", "b" },
-                { "cond", TaoDieuKienCoDiem(currentRole == "giaovien" ? myLhpList : null) }
+                { "cond", TaoDieuKienCoDiem(noPracticeCourseIds, currentRole == "giaovien" ? myLhpList : null) }
             }))),
             new BsonDocument("$unwind", new BsonDocument
             {
@@ -105,8 +110,12 @@ public class ReportsController : ControllerBase
                 "GPA",
                 new BsonDocument("$cond", new BsonArray
                 {
-                    new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 }),
-                    0,
+                    new BsonDocument("$or", new BsonArray
+                    {
+                        new BsonDocument("$eq", new BsonArray { "$SoMonCoDiem", 0 }),
+                        new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 })
+                    }),
+                    BsonNull.Value,
                     new BsonDocument("$round", new BsonArray
                     {
                         new BsonDocument("$divide", new BsonArray { "$TongDiemHeSo", "$TongTinChi" }),
@@ -172,7 +181,7 @@ public class ReportsController : ControllerBase
             var dict = MongoDB.Bson.Serialization.BsonSerializer.Deserialize<Dictionary<string, object>>(d) ?? new Dictionary<string, object>();
             if (d.Contains("_id") && !dict.ContainsKey("Id"))
             {
-                dict["Id"] = d["_id"].ToString();
+                dict["Id"] = d["_id"].ToString() ?? string.Empty;
             }
             return dict;
         });
@@ -180,20 +189,13 @@ public class ReportsController : ControllerBase
         return Ok(json);
     }
 
-    private static BsonDocument TaoDieuKienCoDiem(List<string>? maLhpList = null)
+    private static BsonDocument TaoDieuKienCoDiem(IReadOnlyCollection<string> noPracticeCourseIds, List<string>? maLhpList)
     {
-        var coDiem = new BsonDocument("$or", new BsonArray
-        {
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ChuyenCan", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.GiuaKy", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ThucHanh", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.CuoiKy", BsonNull.Value }), BsonNull.Value })
-        });
-
-        if (maLhpList == null) return coDiem;
+        var complete = GradeCalculator.CompletedCourseCondition(noPracticeCourseIds);
+        if (maLhpList == null) return complete;
         return new BsonDocument("$and", new BsonArray
         {
-            coDiem,
+            complete,
             new BsonDocument("$in", new BsonArray { "$$b.MaLHP", new BsonArray(maLhpList) })
         });
     }

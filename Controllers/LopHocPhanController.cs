@@ -20,6 +20,41 @@ public class LopHocPhanController : ControllerBase
         _db = db;
     }
 
+    [HttpGet("siso/kiemtra")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult> KiemTraSiSo()
+    {
+        var counts = await _db.GetEnrollmentCountsAsync();
+        var classes = await _db.LopHocPhans.Find(_ => true).ToListAsync();
+        return Ok(classes.Select(l => new
+        {
+            l.Id, l.MaMon, l.TenMon,
+            SiSoDangLuu = l.SiSoHienTai,
+            SiSoThucTe = counts.GetValueOrDefault(l.Id),
+            Lech = l.SiSoHienTai != counts.GetValueOrDefault(l.Id)
+        }).Where(x => x.Lech).ToList());
+    }
+
+    [HttpPost("siso/dongbo")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult> DongBoSiSo()
+    {
+        var counts = await _db.GetEnrollmentCountsAsync();
+        var classes = await _db.LopHocPhans.Find(_ => true).ToListAsync();
+        var changed = new List<object>();
+        foreach (var lhp in classes)
+        {
+            var actual = counts.GetValueOrDefault(lhp.Id);
+            if (lhp.SiSoHienTai == actual) continue;
+            var result = await _db.LopHocPhans.UpdateOneAsync(
+                x => x.Id == lhp.Id && x.SiSoHienTai == lhp.SiSoHienTai,
+                Builders<LopHocPhan>.Update.Set(x => x.SiSoHienTai, actual));
+            if (result.ModifiedCount > 0)
+                changed.Add(new { lhp.Id, SiSoCu = lhp.SiSoHienTai, SiSoMoi = actual });
+        }
+        return Ok(new { updated = changed.Count, classes = changed, message = "Đã đồng bộ sĩ số theo số sinh viên có đăng ký." });
+    }
+
     [HttpGet]
     public async Task<ActionResult> Get([FromQuery] string? maGv, [FromQuery] string? maMon)
     {
@@ -185,9 +220,80 @@ public class LopHocPhanController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(string id, LopHocPhan lhp)
     {
-        lhp.Id = id;
         var existing = await _db.LopHocPhans.Find(x => x.Id == id).FirstOrDefaultAsync();
         if (existing == null) return NotFound();
+
+        var registeredCount = await _db.SinhViens.CountDocumentsAsync(
+            x => x.BangDiem.Any(b => b.MaLHP == id));
+        var enrollmentCount = Math.Max(registeredCount, existing.SiSoHienTai);
+
+        if (lhp.SiSoToiDa < enrollmentCount && lhp.SiSoToiDa < existing.SiSoToiDa)
+            return Conflict($"S\u1ec9 s\u1ed1 t\u1ed1i \u0111a kh\u00f4ng th\u1ec3 th\u1ea5p h\u01a1n s\u1ed1 sinh vi\u00ean \u0111ang \u0111\u0103ng k\u00fd ({enrollmentCount}).");
+        if (lhp.SiSoToiDa <= 0)
+            return BadRequest("S\u1ec9 s\u1ed1 t\u1ed1i \u0111a ph\u1ea3i l\u1edbn h\u01a1n 0.");
+        if (string.IsNullOrWhiteSpace(lhp.MaMon) || string.IsNullOrWhiteSpace(lhp.Hocky) ||
+            string.IsNullOrWhiteSpace(lhp.NamHoc) || string.IsNullOrWhiteSpace(lhp.GiangVien?.MaGV))
+            return BadRequest("M\u00e3 m\u00f4n, h\u1ecdc k\u1ef3, n\u0103m h\u1ecdc v\u00e0 gi\u1ea3ng vi\u00ean l\u00e0 b\u1eaft bu\u1ed9c.");
+
+        if (enrollmentCount > 0 &&
+            (!string.Equals(existing.MaMon, lhp.MaMon, StringComparison.Ordinal) ||
+             !string.Equals(existing.Hocky, lhp.Hocky, StringComparison.Ordinal) ||
+             !string.Equals(existing.NamHoc, lhp.NamHoc, StringComparison.Ordinal)))
+        {
+            return Conflict("L\u1edbp \u0111\u00e3 c\u00f3 sinh vi\u00ean \u0111\u0103ng k\u00fd; kh\u00f4ng th\u1ec3 \u0111\u1ed5i m\u00f4n h\u1ecdc, h\u1ecdc k\u1ef3 ho\u1eb7c n\u0103m h\u1ecdc.");
+        }
+
+        var monHoc = await _db.MonHocs.Find(x => x.Id == lhp.MaMon).FirstOrDefaultAsync();
+        if (monHoc == null) return BadRequest("M\u00f4n h\u1ecdc kh\u00f4ng t\u1ed3n t\u1ea1i.");
+        var giangVien = await _db.GiangViens.Find(x => x.Id == lhp.GiangVien.MaGV).FirstOrDefaultAsync();
+        if (giangVien == null) return BadRequest("Gi\u1ea3ng vi\u00ean kh\u00f4ng t\u1ed3n t\u1ea1i.");
+
+        // Course name/credits are canonical values from MonHoc, never user supplied copies.
+        lhp.Id = id;
+        lhp.TenMon = enrollmentCount > 0 ? existing.TenMon : monHoc.TenMon;
+        lhp.SoTinChi = enrollmentCount > 0 ? existing.SoTinChi : monHoc.SoTinChi;
+        lhp.GiangVien = new GiangVienPhuTrach
+        {
+            MaGV = giangVien.Id,
+            HoTen = giangVien.HoTen,
+            TenGV = null
+        };
+
+        var instructorChanged = existing.GiangVien?.MaGV != lhp.GiangVien.MaGV;
+        var studentFilter = Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == id);
+        var studentUpdate = Builders<SinhVien>.Update.Set("BangDiem.$[entry].GiangVien", lhp.GiangVien);
+        var studentUpdateOptions = new UpdateOptions
+        {
+            ArrayFilters = new List<ArrayFilterDefinition>
+            {
+                new BsonDocumentArrayFilterDefinition<BsonDocument>(new BsonDocument("entry.MaLHP", id))
+            }
+        };
+
+        // Persist the denormalized teacher first. If either write fails, compensate so
+        // the class and its enrollment snapshots remain aligned without touching grades.
+        if (instructorChanged && registeredCount > 0)
+        {
+            try
+            {
+                await _db.SinhViens.UpdateManyAsync(studentFilter, studentUpdate, studentUpdateOptions);
+            }
+            catch
+            {
+                try
+                {
+                    await _db.SinhViens.UpdateManyAsync(
+                        studentFilter,
+                        Builders<SinhVien>.Update.Set("BangDiem.$[entry].GiangVien", existing.GiangVien),
+                        studentUpdateOptions);
+                    return StatusCode(500, "Kh\u00f4ng th\u1ec3 \u0111\u1ed5i gi\u1ea3ng vi\u00ean; d\u1eef li\u1ec7u b\u1ea3ng \u0111i\u1ec3m \u0111\u00e3 \u0111\u01b0\u1ee3c kh\u00f4i ph\u1ee5c.");
+                }
+                catch
+                {
+                    return StatusCode(500, "L\u1ed7i khi \u0111\u1ed5i gi\u1ea3ng vi\u00ean; c\u1ea7n ki\u1ec3m tra l\u1ea1i c\u00e1c b\u1ea3n ghi gi\u1ea3ng vi\u00ean trong b\u1ea3ng \u0111i\u1ec3m.");
+                }
+            }
+        }
 
         var update = Builders<LopHocPhan>.Update
             .Set(x => x.MaMon, lhp.MaMon)
@@ -201,26 +307,46 @@ public class LopHocPhanController : ControllerBase
             .Set(x => x.SiSoToiDa, lhp.SiSoToiDa)
             .Set(x => x.DaMo, lhp.DaMo)
             .Set(x => x.ChoPhepGvNhapSuaDiem, lhp.ChoPhepGvNhapSuaDiem);
-        var result = await _db.LopHocPhans.UpdateOneAsync(x => x.Id == id, update);
-        if (result.MatchedCount == 0) return NotFound();
 
-        // Đồng bộ thông tin giảng viên mới vào BangDiem của tất cả sinh viên đã đăng ký lớp này
-        if (lhp.GiangVien != null)
+        try
         {
-            var svFilter = Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == id);
-            var svUpdate = Builders<SinhVien>.Update
-                .Set("BangDiem.$[elem].GiangVien.MaGV", lhp.GiangVien.MaGV)
-                .Set("BangDiem.$[elem].GiangVien.HoTen", lhp.GiangVien.HoTen);
-            var arrayFilters = new List<ArrayFilterDefinition>
+            var result = await _db.LopHocPhans.UpdateOneAsync(x => x.Id == id, update);
+            if (result.MatchedCount > 0) return NoContent();
+        }
+        catch
+        {
+            if (instructorChanged && registeredCount > 0)
             {
-                new BsonDocumentArrayFilterDefinition<BsonDocument>(
-                    new BsonDocument("elem.MaLHP", id))
-            };
-            var updateOptions = new UpdateOptions { ArrayFilters = arrayFilters };
-            await _db.SinhViens.UpdateManyAsync(svFilter, svUpdate, updateOptions);
+                try
+                {
+                    await _db.SinhViens.UpdateManyAsync(
+                        studentFilter,
+                        Builders<SinhVien>.Update.Set("BangDiem.$[entry].GiangVien", existing.GiangVien),
+                        studentUpdateOptions);
+                }
+                catch
+                {
+                    return StatusCode(500, "L\u1ed7i l\u01b0u l\u1edbp h\u1ecdc ph\u1ea7n v\u00e0 kh\u00f4i ph\u1ee5c ph\u00e2n c\u00f4ng; c\u1ea7n ki\u1ec3m tra l\u1ea1i d\u1eef li\u1ec7u.");
+                }
+            }
+            return StatusCode(500, "Kh\u00f4ng th\u1ec3 l\u01b0u th\u00f4ng tin l\u1edbp h\u1ecdc ph\u1ea7n.");
         }
 
-        return NoContent();
+        if (instructorChanged && registeredCount > 0)
+        {
+            try
+            {
+                await _db.SinhViens.UpdateManyAsync(
+                    studentFilter,
+                    Builders<SinhVien>.Update.Set("BangDiem.$[entry].GiangVien", existing.GiangVien),
+                    studentUpdateOptions);
+            }
+            catch
+            {
+                return StatusCode(500, "Kh\u00f4ng t\u00ecm th\u1ea5y l\u1edbp khi l\u01b0u; b\u1ea3n ghi gi\u1ea3ng vi\u00ean trong b\u1ea3ng \u0111i\u1ec3m c\u1ea7n \u0111\u01b0\u1ee3c ki\u1ec3m tra.");
+            }
+        }
+        return NotFound();
     }
 
     /// <summary>

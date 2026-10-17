@@ -53,7 +53,7 @@ public class BangDiemMonHoc
     
     public DiemThanhPhan DiemThanhPhan { get; set; } = new DiemThanhPhan();
     
-    public double DiemTongKet { get; set; }
+    public double? DiemTongKet { get; set; }
     public string? DiemChu { get; set; } = null;
     
     public List<DiemCLO> DiemCLO { get; set; } = new List<DiemCLO>();

@@ -28,6 +28,18 @@
     <div id="lhpCount" class="table-result-count" aria-live="polite">Đang tải danh sách...</div>
   </div>
 
+  <section id="sisoReconcile" class="card mb-3" style="display:none">
+    <div class="card-body">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <strong>&#272;&#7889;i so&#225;t s&#297; s&#7889;</strong>
+        <button class="btn btn-sm btn-outline-primary" onclick="kiemTraSiSo()">Ki&#7875;m tra</button>
+        <button class="btn btn-sm btn-warning" id="btnDongBoSiSo" onclick="dongBoSiSo()" style="display:none">&#272;&#7891;ng b&#7897; c&#225;c l&#7899;p sai l&#7879;ch</button>
+        <span id="sisoMessage" class="text-muted"></span>
+      </div>
+      <div id="sisoRows" class="table-responsive mt-2"></div>
+    </div>
+  </section>
+
   <!-- Table -->
   <div class="table-scroll-card">
     <div class="table-responsive table-scroll-area">
@@ -67,6 +79,9 @@
       <div class="modal-body">
         <input type="hidden" id="lhpIsEdit" />
         <div id="modalLhp-error" class="alert alert-danger py-2 mb-3" style="display:none;"></div>
+        <div id="lhpEnrollmentLockNotice" class="alert alert-warning py-2 mb-3 d-none">
+          L&#7899;p &#273;&#227; c&#243; sinh vi&#234;n &#273;&#259;ng k&#253;. M&#227; l&#7899;p, m&#244;n h&#7885;c, t&#237;n ch&#7881;, h&#7885;c k&#7923; v&#224; n&#259;m h&#7885;c &#273;&#432;&#7907;c kh&#243;a &#273;&#7875; b&#7843;o v&#7879; l&#7883;ch s&#7917; h&#7885;c t&#7853;p. B&#7841;n v&#7851;n c&#243; th&#7875; &#273;&#7893;i gi&#7843;ng vi&#234;n, ph&#242;ng, l&#7883;ch h&#7885;c v&#224; tr&#7841;ng th&#225;i. S&#297; s&#7889; t&#7889;i &#273;a kh&#244;ng th&#7875; nh&#7887; h&#417;n s&#7889; sinh vi&#234;n &#273;ang &#273;&#259;ng k&#253;.
+        </div>
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Mã LHP <span class="text-danger">*</span></label>
@@ -198,7 +213,27 @@
 
   const role = localStorage.getItem('role');
   if (role !== 'admin') document.getElementById('btnAddLhp').style.display = 'none';
+  else document.getElementById('sisoReconcile').style.display = '';
   if (role !== 'admin') document.getElementById('lhpTeacherScorePermissionWrap').style.display = 'none';
+
+  async function kiemTraSiSo() {
+    try {
+      const rows = await api('/api/LopHocPhan/siso/kiemtra');
+      document.getElementById('sisoMessage').textContent = rows.length ? `Có ${rows.length} lớp lệch sĩ số.` : 'Không phát hiện lớp lệch sĩ số.';
+      document.getElementById('btnDongBoSiSo').style.display = rows.length ? '' : 'none';
+      document.getElementById('sisoRows').innerHTML = rows.length
+        ? '<table class="table table-sm"><thead><tr><th>Mã lớp</th><th>Môn</th><th>Đang lưu</th><th>Đăng ký thực tế</th></tr></thead><tbody>' + rows.map(x => `<tr><td>${x.Id}</td><td>${x.TenMon || x.MaMon}</td><td>${x.SiSoDangLuu}</td><td>${x.SiSoThucTe}</td></tr>`).join('') + '</tbody></table>' : '';
+    } catch (e) { toast('Không kiểm tra được sĩ số: ' + e.message, 'danger'); }
+  }
+  async function dongBoSiSo() {
+    if (!await confirmAction('Đồng bộ sĩ số theo số sinh viên đang có đăng ký?')) return;
+    try {
+      const result = await api('/api/LopHocPhan/siso/dongbo', { method: 'POST' });
+      toast(result.message, 'success');
+      await kiemTraSiSo();
+      await loadLhpPage();
+    } catch (e) { toast('Không đồng bộ được sĩ số: ' + e.message, 'danger'); }
+  }
 
   let _lhpAll = [];
   let _lhpPage = 1;

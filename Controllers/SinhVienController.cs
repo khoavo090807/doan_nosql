@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using doan_cuoiky_nosql.Models;
@@ -36,11 +36,11 @@ public class SinhVienController : ControllerBase
     /// </summary>
     private async Task<ActionResult?> KiemTraQuyenNhapSuaDiem(string maLhp)
     {
+        var lhp = await _mongoDbService.LopHocPhans.Find(x => x.Id == maLhp).FirstOrDefaultAsync();
+        if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
         if (CurrentRole == "admin") return null;
         if (CurrentRole != "giaovien") return Forbid();
 
-        var lhp = await _mongoDbService.LopHocPhans.Find(x => x.Id == maLhp).FirstOrDefaultAsync();
-        if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
         if (lhp.GiangVien?.MaGV != CurrentRefId) return Forbid();
         if (!lhp.ChoPhepGvNhapSuaDiem)
             return StatusCode(403, "Đã hết thời gian nhập hoặc chỉnh sửa điểm.");
@@ -204,12 +204,31 @@ public class SinhVienController : ControllerBase
                 return Conflict($"Tài khoản '{sv.Id}' đã tồn tại.");
         }
 
+        var enrollmentIds = sv.BangDiem.Select(x => x.MaLHP).ToList();
+        if (enrollmentIds.Count != enrollmentIds.Distinct().Count())
+            return BadRequest("Hồ sơ không được có đăng ký trùng lớp học phần.");
+
         sv.TaoTaiKhoan = false;
         sv.MatKhauTaiKhoan = null;
-        await _mongoDbService.SinhViens.InsertOneAsync(sv);
-
-        foreach (var enrollment in sv.BangDiem.GroupBy(x => x.MaLHP))
-            await TangSiSoAsync(enrollment.Key, enrollment.Count());
+        var reservedClasses = new List<string>();
+        foreach (var maLhp in enrollmentIds)
+        {
+            if (!await TangSiSoAsync(maLhp))
+            {
+                foreach (var reserved in reservedClasses) await GiamSiSoAsync(reserved);
+                return Conflict("Lớp học phần đã đủ sĩ số hoặc không tồn tại.");
+            }
+            reservedClasses.Add(maLhp);
+        }
+        try
+        {
+            await _mongoDbService.SinhViens.InsertOneAsync(sv);
+        }
+        catch
+        {
+            foreach (var reserved in reservedClasses) await GiamSiSoAsync(reserved);
+            throw;
+        }
 
         if (taoTaiKhoan)
         {
@@ -230,8 +249,7 @@ public class SinhVienController : ControllerBase
             catch
             {
                 await _mongoDbService.SinhViens.DeleteOneAsync(x => x.Id == sv.Id);
-                foreach (var enrollment in sv.BangDiem.GroupBy(x => x.MaLHP))
-                    await GiamSiSoAsync(enrollment.Key, enrollment.Count());
+                foreach (var reserved in reservedClasses) await GiamSiSoAsync(reserved);
                 throw;
             }
         }
@@ -239,9 +257,9 @@ public class SinhVienController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = sv.Id }, sv);
     }
 
-    /// <summary>Thêm môn mới vào mảng BangDiem bằng toán tử $push.</summary>
+    /// <summary>Admin thêm đăng ký học phần vào bảng điểm sinh viên.</summary>
     [HttpPost("{id}/diem")]
-    [Authorize(Roles = "admin,giaovien")]
+    [Authorize(Roles = "admin")]
     public async Task<ActionResult> ThemMonHoc(string id, [FromBody] BangDiemMonHoc monMoi)
     {
         if (string.IsNullOrWhiteSpace(monMoi.MaLHP) || string.IsNullOrWhiteSpace(monMoi.MaMon))
@@ -252,71 +270,107 @@ public class SinhVienController : ControllerBase
         var permissionError = await KiemTraQuyenNhapSuaDiem(monMoi.MaLHP);
         if (permissionError != null) return permissionError;
 
+        var lhp = await _mongoDbService.LopHocPhans.Find(x => x.Id == monMoi.MaLHP).FirstOrDefaultAsync();
+        if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
+        if (lhp.MaMon != monMoi.MaMon)
+            return BadRequest("Mã môn học không khớp với lớp học phần.");
+        var monHoc = await _mongoDbService.MonHocs.Find(x => x.Id == monMoi.MaMon).FirstOrDefaultAsync();
+        if (monHoc == null) return NotFound("Không tìm thấy môn học.");
+
         var exists = await _mongoDbService.SinhViens
             .Find(x => x.Id == id && x.BangDiem.Any(b => b.MaLHP == monMoi.MaLHP))
             .AnyAsync();
         if (exists) return Conflict("Môn học phần này đã có trong bảng điểm.");
 
-        TinhDiemTongKet(monMoi);
-        if (string.IsNullOrWhiteSpace(monMoi.DiemChu)) monMoi.DiemChu = "F";
-        if (CoDiem(monMoi.DiemThanhPhan))
+        monMoi.DiemTongKet = GradeCalculator.CalculateFinal(
+            monMoi.DiemThanhPhan, GradeCalculator.UsesPractice(monHoc));
+        monMoi.DiemChu = GradeCalculator.LetterGrade(monMoi.DiemTongKet);
+        monMoi.DiemCLO = GradeCalculator.BuildCloResults(monHoc, monMoi.DiemTongKet);
+
+        if (!await TangSiSoAsync(monMoi.MaLHP)) return Conflict("Lớp đã đủ sĩ số hoặc không còn tồn tại.");
+
+        try
         {
-            if (monMoi.DiemCLO == null || monMoi.DiemCLO.Count == 0)
+            var addFilter = Builders<SinhVien>.Filter.Eq(x => x.Id, id) &
+                Builders<SinhVien>.Filter.Not(Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == monMoi.MaLHP));
+            var result = await _mongoDbService.SinhViens.UpdateOneAsync(
+                addFilter,
+                Builders<SinhVien>.Update.Push(x => x.BangDiem, monMoi));
+            if (result.MatchedCount == 0)
             {
-                var monHoc = await _mongoDbService.MonHocs.Find(x => x.Id == monMoi.MaMon).FirstOrDefaultAsync();
-                monMoi.DiemCLO = (monHoc?.CLO ?? new List<CLOMonHoc>()).Select(clo => new DiemCLO
-                {
-                    MaCLO = clo.MaCLO,
-                    DiemDat = monMoi.DiemTongKet,
-                    KetQua = monMoi.DiemTongKet >= 5 ? "Đạt" : "Không đạt"
-                }).ToList();
-            }
-            else
-            {
-                foreach (var clo in monMoi.DiemCLO)
-                {
-                    clo.DiemDat = monMoi.DiemTongKet;
-                    clo.KetQua = monMoi.DiemTongKet >= 5 ? "Đạt" : "Không đạt";
-                }
+                await GiamSiSoAsync(monMoi.MaLHP);
+                return Conflict("Sinh vien da dang ky lop hoc phan nay hoac khong ton tai.");
             }
         }
+        catch
+        {
+            var committed = await _mongoDbService.SinhViens.Find(x => x.Id == id && x.BangDiem.Any(b => b.MaLHP == monMoi.MaLHP)).AnyAsync();
+            if (!committed) await GiamSiSoAsync(monMoi.MaLHP);
+            throw;
+        }
 
-        var addFilter = Builders<SinhVien>.Filter.Eq(x => x.Id, id) &
-            Builders<SinhVien>.Filter.Not(Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == monMoi.MaLHP));
-        var result = await _mongoDbService.SinhViens.UpdateOneAsync(
-            addFilter,
-            Builders<SinhVien>.Update.Push(x => x.BangDiem, monMoi));
-
-        if (result.MatchedCount == 0)
-            return Conflict("Môn học phần này đã có trong bảng điểm hoặc không tìm thấy sinh viên.");
-
-        await TangSiSoAsync(monMoi.MaLHP);
         return Ok(monMoi);
     }
 
-    /// <summary>Xóa 1 môn học khỏi mảng BangDiem bằng toán tử $pull.</summary>
+    /// <summary>Đặt lại điểm của một học phần mà không xóa đăng ký.</summary>
     [HttpDelete("{id}/diem/{maLhp}")]
     [Authorize(Roles = "admin,giaovien")]
-    public async Task<ActionResult> XoaMonHoc(string id, string maLhp)
+    public async Task<ActionResult> XoaDiem(string id, string maLhp)
     {
         var permissionError = await KiemTraQuyenNhapSuaDiem(maLhp);
         if (permissionError != null) return permissionError;
 
-        var sv = await _mongoDbService.SinhViens.Find(x => x.Id == id).FirstOrDefaultAsync();
-        if (sv == null) return NotFound("Không tìm thấy sinh viên.");
-        var soDangKy = sv.BangDiem.Count(b => b.MaLHP == maLhp);
-        if (soDangKy == 0) return NotFound("Môn học không tồn tại trong bảng điểm.");
+        var filter = Builders<SinhVien>.Filter.Eq(x => x.Id, id) &
+            Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == maLhp);
+        var studentExists = await _mongoDbService.SinhViens.Find(x => x.Id == id).AnyAsync();
+        if (!studentExists) return NotFound("Không tìm thấy sinh viên.");
+        if (!await _mongoDbService.SinhViens.Find(filter).AnyAsync())
+            return NotFound("Sinh viên chưa đăng ký lớp học phần này.");
 
-        var filter = Builders<SinhVien>.Filter.Eq(x => x.Id, id);
-        var update = Builders<SinhVien>.Update.PullFilter(x => x.BangDiem, b => b.MaLHP == maLhp);
+        var update = Builders<SinhVien>.Update
+            .Set("BangDiem.$[element].DiemThanhPhan.ChuyenCan", (double?)null)
+            .Set("BangDiem.$[element].DiemThanhPhan.GiuaKy", (double?)null)
+            .Set("BangDiem.$[element].DiemThanhPhan.ThucHanh", (double?)null)
+            .Set("BangDiem.$[element].DiemThanhPhan.CuoiKy", (double?)null)
+            .Set("BangDiem.$[element].DiemTongKet", (double?)null)
+            .Set("BangDiem.$[element].DiemChu", (string?)null)
+            .Set("BangDiem.$[element].DiemCLO", new List<DiemCLO>());
+        var options = new UpdateOptions
+        {
+            ArrayFilters = new List<ArrayFilterDefinition>
+            {
+                new BsonDocumentArrayFilterDefinition<BsonDocument>(new BsonDocument("element.MaLHP", maLhp))
+            }
+        };
+        await _mongoDbService.SinhViens.UpdateOneAsync(filter, update, options);
+        return Ok("Đã xóa điểm. Sinh viên vẫn được giữ trong lớp học phần.");
+    }
 
-        var result = await _mongoDbService.SinhViens.UpdateOneAsync(filter, update);
-        if (result.MatchedCount == 0) return NotFound("Không tìm thấy sinh viên");
-        if (result.ModifiedCount == 0) return NotFound("Môn học không tồn tại trong bảng điểm");
-
-        await GiamSiSoAsync(maLhp, soDangKy);
-
-        return Ok("Đã xóa môn khỏi bảng điểm.");
+    /// <summary>Admin hủy đăng ký của sinh viên khỏi lớp học phần.</summary>
+    [HttpDelete("{id}/lophocphan/{maLhp}")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult> XoaSinhVienKhoiLop(string id, string maLhp)
+    {
+        if (!await _mongoDbService.LopHocPhans.Find(x => x.Id == maLhp).AnyAsync())
+            return NotFound("Không tìm thấy lớp học phần.");
+        var filter = Builders<SinhVien>.Filter.Eq(x => x.Id, id) &
+            Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == maLhp);
+        var enrollment = await _mongoDbService.SinhViens.Find(filter).FirstOrDefaultAsync();
+        var enrollmentCount = enrollment != null && enrollment.BangDiem.Any(b => b.MaLHP == maLhp) ? 1 : 0;
+        if (enrollmentCount > 0 && !await GiamSiSoAsync(maLhp))
+            return Conflict("Cannot update class count; student registration was kept.");
+        var result = await _mongoDbService.SinhViens.UpdateOneAsync(
+            filter,
+            Builders<SinhVien>.Update.PullFilter(x => x.BangDiem, b => b.MaLHP == maLhp));
+        if (result.MatchedCount == 0)
+        {
+            if (enrollmentCount > 0) await KhoiPhucSiSoAsync(maLhp);
+            var studentExists = await _mongoDbService.SinhViens.Find(x => x.Id == id).AnyAsync();
+            return studentExists
+                ? NotFound("Sinh viên chưa đăng ký lớp học phần này.")
+                : NotFound("Không tìm thấy sinh viên.");
+        }
+        return Ok("Đã xóa sinh viên khỏi lớp học phần.");
     }
 
     [HttpPut("{id}")]
@@ -344,8 +398,8 @@ public class SinhVienController : ControllerBase
         var sv = await _mongoDbService.SinhViens.FindOneAndDeleteAsync(x => x.Id == id);
         if (sv == null) return NotFound();
 
-        foreach (var enrollment in sv.BangDiem.GroupBy(x => x.MaLHP))
-            await GiamSiSoAsync(enrollment.Key, enrollment.Count());
+        foreach (var maLhp in sv.BangDiem.Select(x => x.MaLHP).Distinct())
+            await DongBoSiSoLopAsync(maLhp);
 
         var accounts = await _mongoDbService.TaiKhoans
             .Find(x => x.RefId == id && x.Role == "sinhvien")
@@ -375,8 +429,10 @@ public class SinhVienController : ControllerBase
         var monHienTai = svHienTai.BangDiem.FirstOrDefault(b => b.MaLHP == maLhp);
         if (monHienTai == null) return NotFound("Môn học phần không tồn tại trong bảng điểm.");
         
-        var tongKet = TinhDiemTongKetValue(diemMoi);
-        var diemChu = QuyDoiDiemChu(tongKet);
+        var monHoc = await _mongoDbService.MonHocs.Find(x => x.Id == monHienTai.MaMon).FirstOrDefaultAsync();
+        if (monHoc == null) return NotFound("Không tìm thấy môn học để xác định các thành phần điểm.");
+        var tongKet = GradeCalculator.CalculateFinal(diemMoi, GradeCalculator.UsesPractice(monHoc));
+        var diemChu = GradeCalculator.LetterGrade(tongKet);
 
         var update = Builders<SinhVien>.Update
             .Set("BangDiem.$[element].DiemThanhPhan.ChuyenCan", diemMoi.ChuyenCan)
@@ -386,31 +442,7 @@ public class SinhVienController : ControllerBase
             .Set("BangDiem.$[element].DiemTongKet", tongKet)
             .Set("BangDiem.$[element].DiemChu", diemChu);
 
-        if (CoDiem(diemMoi))
-        {
-            var ketQuaClo = tongKet >= 5 ? "Đạt" : "Không đạt";
-            var diemClo = monHienTai.DiemCLO ?? new List<DiemCLO>();
-            if (diemClo.Count == 0)
-            {
-                var monHoc = await _mongoDbService.MonHocs.Find(x => x.Id == monHienTai.MaMon).FirstOrDefaultAsync();
-                diemClo = (monHoc?.CLO ?? new List<CLOMonHoc>()).Select(clo => new DiemCLO
-                {
-                    MaCLO = clo.MaCLO,
-                    DiemDat = tongKet,
-                    KetQua = ketQuaClo
-                }).ToList();
-            }
-            else
-            {
-                foreach (var clo in diemClo)
-                {
-                    clo.DiemDat = tongKet;
-                    clo.KetQua = ketQuaClo;
-                }
-            }
-
-            update = update.Set("BangDiem.$[element].DiemCLO", diemClo);
-        }
+        update = update.Set("BangDiem.$[element].DiemCLO", GradeCalculator.BuildCloResults(monHoc, tongKet));
 
         var arrayFilters = new List<ArrayFilterDefinition>
         {
@@ -456,6 +488,11 @@ public class SinhVienController : ControllerBase
                 return Forbid("Bạn không có quyền xem điểm của sinh viên này.");
         }
 
+        var noPracticeCourseIds = await _mongoDbService.MonHocs
+            .Find(x => x.ThucHanh <= 0)
+            .Project(x => x.Id)
+            .ToListAsync();
+
         var pipeline = new List<BsonDocument>
         {
             new BsonDocument("$match", new BsonDocument("_id", id)),
@@ -463,7 +500,7 @@ public class SinhVienController : ControllerBase
             {
                 { "input", new BsonDocument("$ifNull", new BsonArray { "$BangDiem", new BsonArray() }) },
                 { "as", "b" },
-                { "cond", TaoDieuKienCoDiem(CurrentRole == "giaovien" ? maLhpList : null) }
+                { "cond", TaoDieuKienCoDiem(noPracticeCourseIds, CurrentRole == "giaovien" ? maLhpList : null) }
             }))),
             new BsonDocument("$unwind", new BsonDocument
             {
@@ -497,9 +534,9 @@ public class SinhVienController : ControllerBase
                         new BsonDocument("$or", new BsonArray
                         {
                             new BsonDocument("$eq", new BsonArray { "$SoMonCoDiem", 0 }),
-                            new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 })
+                    new BsonDocument("$eq", new BsonArray { "$TongTinChi", 0 })
                         }),
-                        0,
+                BsonNull.Value,
                         new BsonDocument("$divide", new BsonArray { "$TongDiemHeSo", "$TongTinChi" })
                     })
                 }
@@ -528,6 +565,17 @@ public class SinhVienController : ControllerBase
 
         if (result == null) return NotFound("Không thể tính điểm hoặc không có dữ liệu bảng điểm");
 
+        if (result["GPA"].IsBsonNull)
+        {
+            var student = await _mongoDbService.SinhViens.Find(x => x.Id == id).FirstOrDefaultAsync();
+            var hasPartialScores = student?.BangDiem.Any(b =>
+                (CurrentRole != "giaovien" || maLhpList!.Contains(b.MaLHP)) &&
+                GradeCalculator.HasAnyScore(b.DiemThanhPhan) &&
+                !GradeCalculator.IsComplete(b.DiemThanhPhan,
+                    !noPracticeCourseIds.Contains(b.MaMon))) == true;
+            if (hasPartialScores) result["XepLoai"] = "Ch?a ho?n t?t ?i?m";
+        }
+
         result["_id"] = result["_id"].ToString();
         var resDict = MongoDB.Bson.Serialization.BsonSerializer.Deserialize<Dictionary<string, object>>(result);
         return Ok(resDict);
@@ -545,14 +593,18 @@ public class SinhVienController : ControllerBase
 
         var khoa = await _mongoDbService.Khoas.Find(x => x.Id == sv.MaKhoa).FirstOrDefaultAsync();
         var tenKhoa = khoa?.TenKhoa ?? sv.MaKhoa ?? "";
-        var coDiem = sv.BangDiem.Where(b =>
-            b.DiemThanhPhan?.ChuyenCan.HasValue == true ||
-            b.DiemThanhPhan?.GiuaKy.HasValue == true ||
-            b.DiemThanhPhan?.ThucHanh.HasValue == true ||
-            b.DiemThanhPhan?.CuoiKy.HasValue == true).ToList();
+        var courseIds = sv.BangDiem.Select(b => b.MaMon).Distinct().ToList();
+        var courses = await _mongoDbService.MonHocs.Find(x => courseIds.Contains(x.Id)).ToListAsync();
+        var coursesById = courses.ToDictionary(x => x.Id);
+        bool Complete(BangDiemMonHoc b) =>
+            b.DiemTongKet.HasValue &&
+            GradeCalculator.IsComplete(b.DiemThanhPhan,
+                !coursesById.TryGetValue(b.MaMon, out var course) || GradeCalculator.UsesPractice(course));
+        var coDiem = sv.BangDiem.Where(Complete).ToList();
         var tongTinChi = coDiem.Sum(b => b.SoTinChi);
-        var gpa = tongTinChi == 0 ? 0 : coDiem.Sum(b => b.DiemTongKet * b.SoTinChi) / tongTinChi;
-        var xepLoai = coDiem.Count == 0 ? "Chưa có điểm" : gpa switch
+        var gpa = tongTinChi == 0 ? (double?)null : coDiem.Sum(b => b.DiemTongKet!.Value * b.SoTinChi) / tongTinChi;
+        var hasPartial = sv.BangDiem.Any(b => GradeCalculator.HasAnyScore(b.DiemThanhPhan) && !Complete(b));
+        var xepLoai = coDiem.Count == 0 ? (hasPartial ? "Chưa hoàn tất điểm" : "Chưa có điểm") : gpa!.Value switch
         {
             >= 9 => "Xuất sắc",
             >= 8 => "Giỏi",
@@ -630,8 +682,9 @@ public class SinhVienController : ControllerBase
                         BodyCell(table, mon.DiemThanhPhan?.GiuaKy?.ToString("0.##") ?? "—");
                         BodyCell(table, mon.DiemThanhPhan?.ThucHanh?.ToString("0.##") ?? "—");
                         BodyCell(table, mon.DiemThanhPhan?.CuoiKy?.ToString("0.##") ?? "—");
-                        BodyCell(table, mon.DiemTongKet.ToString("0.0"));
-                        BodyCell(table, mon.DiemChu ?? "Chưa có");
+                        var complete = Complete(mon);
+                        BodyCell(table, complete ? mon.DiemTongKet!.Value.ToString("0.0") : GradeCalculator.ScoreStatus(mon.DiemThanhPhan));
+                        BodyCell(table, complete ? (mon.DiemChu ?? GradeCalculator.LetterGrade(mon.DiemTongKet)) ?? "—" : GradeCalculator.ScoreStatus(mon.DiemThanhPhan));
                     }
 
                     if (bangDiem.Count == 0)
@@ -640,7 +693,7 @@ public class SinhVienController : ControllerBase
 
                 column.Item().PaddingTop(12).Row(row =>
                 {
-                    row.RelativeItem().Text($"GPA (chỉ tính môn đã có điểm): {gpa:0.00}").Bold();
+                    row.RelativeItem().Text($"GPA (chỉ tính môn đã hoàn tất điểm): {(gpa.HasValue ? gpa.Value.ToString("0.00") : "—")}").Bold();
                     row.RelativeItem().Text($"Xếp loại: {xepLoai}").Bold();
                 });
                 column.Item().PaddingTop(8).AlignRight().Text($"Ngày xuất: {DateTime.Now:dd/MM/yyyy}");
@@ -667,7 +720,7 @@ public class SinhVienController : ControllerBase
     private static void BodyCell(TableDescriptor table, string text) =>
         table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(4).Text(text);
 
-    /// <summary>Sinh viên đăng ký lớp học phần</summary>
+    /// <summary>Sinh viên đăng ký trong thời gian đăng ký đang mở.</summary>
     [HttpPost("dangky/{maLhp}")]
     [Authorize(Roles = "sinhvien,admin")]
     public async Task<ActionResult> DangKyHocPhan(string maLhp, [FromQuery] string? svId)
@@ -678,9 +731,9 @@ public class SinhVienController : ControllerBase
         var lhp = await _mongoDbService.LopHocPhans.Find(x => x.Id == maLhp).FirstOrDefaultAsync();
         if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
 
-        // Kiểm tra lớp học phần có đang mở để sinh viên đăng ký không
+        // DaMo là trạng thái đăng ký, không phải trạng thái điểm hay trạng thái học phần.
         if (!lhp.DaMo)
-            return BadRequest("Lớp học phần này hiện đang đóng, không cho phép đăng ký.");
+            return BadRequest("Đã đóng thời gian đăng ký lớp học phần này.");
 
         var sv = await _mongoDbService.SinhViens.Find(x => x.Id == targetSvId).FirstOrDefaultAsync();
         if (sv == null) return NotFound("Không tìm thấy sinh viên.");
@@ -715,14 +768,9 @@ public class SinhVienController : ControllerBase
             Hocky = lhp.Hocky,
             NamHoc = lhp.NamHoc,
             DiemThanhPhan = new DiemThanhPhan(),
-            DiemTongKet = 0,
-            DiemChu = "Chưa có",
-            DiemCLO = (monHoc?.CLO ?? new List<CLOMonHoc>()).Select(c => new DiemCLO
-            {
-                MaCLO = c.MaCLO,
-                DiemDat = 0,
-                KetQua = "Chưa đánh giá"
-            }).ToList()
+            DiemTongKet = null,
+            DiemChu = "Chưa có điểm",
+            DiemCLO = new List<DiemCLO>()
         };
 
         var slotFilter = new BsonDocumentFilterDefinition<LopHocPhan>(new BsonDocument
@@ -754,14 +802,15 @@ public class SinhVienController : ControllerBase
         }
         catch
         {
-            await GiamSiSoAsync(maLhp);
+            var committed = await _mongoDbService.SinhViens.Find(x => x.Id == targetSvId && x.BangDiem.Any(b => b.MaLHP == maLhp)).AnyAsync();
+            if (!committed) await GiamSiSoAsync(maLhp);
             throw;
         }
 
         return Ok(new { message = $"Đăng ký thành công môn '{lhp.TenMon}' ({lhp.Id})", entry });
     }
 
-    /// <summary>Sinh viên hủy đăng ký lớp học phần nếu chưa có điểm</summary>
+    /// <summary>Sinh viên chỉ tự hủy đăng ký khi thời gian đăng ký vẫn đang mở.</summary>
     [HttpDelete("huydangky/{maLhp}")]
     [Authorize(Roles = "sinhvien,admin")]
     public async Task<ActionResult> HuyDangKyHocPhan(string maLhp, [FromQuery] string? svId)
@@ -776,68 +825,78 @@ public class SinhVienController : ControllerBase
         var lhp = await _mongoDbService.LopHocPhans.Find(x => x.Id == maLhp).FirstOrDefaultAsync();
         if (lhp == null) return NotFound("Không tìm thấy lớp học phần.");
         if (CurrentRole == "sinhvien" && !lhp.DaMo)
-            return BadRequest("Lớp học phần đã đóng, không thể hủy đăng ký.");
+            return BadRequest("Đã đóng thời gian đăng ký; sinh viên không thể tự hủy lớp học phần.");
 
         var sv = await _mongoDbService.SinhViens.Find(x => x.Id == targetSvId).FirstOrDefaultAsync();
         if (sv == null) return NotFound("Không tìm thấy sinh viên.");
 
         var item = sv.BangDiem.FirstOrDefault(b => b.MaLHP == maLhp);
         if (item == null) return NotFound("Sinh viên chưa đăng ký lớp học phần này.");
-        var soDangKy = sv.BangDiem.Count(b => b.MaLHP == maLhp);
+        var soDangKy = sv.BangDiem.Any(b => b.MaLHP == maLhp) ? 1 : 0;
 
         // Không cho phép hủy nếu đã có điểm
         var hasScore = item.DiemThanhPhan?.ChuyenCan.HasValue == true ||
                    item.DiemThanhPhan?.GiuaKy.HasValue == true ||
                    item.DiemThanhPhan?.ThucHanh.HasValue == true ||
                    item.DiemThanhPhan?.CuoiKy.HasValue == true ||
-                       item.DiemTongKet > 0;
+                       item.DiemTongKet.GetValueOrDefault() > 0;
 
         if (hasScore && CurrentRole == "sinhvien")
             return BadRequest("Không thể hủy lớp học phần đã được giáo viên nhập điểm.");
 
+        var enrollmentFilter = Builders<SinhVien>.Filter.Eq(x => x.Id, targetSvId) &
+            Builders<SinhVien>.Filter.ElemMatch(x => x.BangDiem, b => b.MaLHP == maLhp);
+        if (!await GiamSiSoAsync(maLhp, soDangKy))
+            return Conflict("Cannot update class count; student registration was kept.");
         var result = await _mongoDbService.SinhViens.UpdateOneAsync(
-            Builders<SinhVien>.Filter.Eq(x => x.Id, targetSvId),
+            enrollmentFilter,
             Builders<SinhVien>.Update.PullFilter(x => x.BangDiem, b => b.MaLHP == maLhp)
         );
-        if (result.ModifiedCount > 0)
-            await GiamSiSoAsync(maLhp, soDangKy);
+        if (result.ModifiedCount == 0)
+        {
+            await KhoiPhucSiSoAsync(maLhp);
+            return NotFound("Sinh viên chưa đăng ký lớp học phần này.");
+        }
 
         return Ok(new { message = $"Đã hủy đăng ký lớp '{item.TenMon}' ({maLhp})" });
     }
 
-    private async Task TangSiSoAsync(string maLhp, int soLuong = 1)
+    private async Task<bool> TangSiSoAsync(string maLhp, int soLuong = 1)
     {
-        if (soLuong <= 0) return;
-        await _mongoDbService.LopHocPhans.UpdateOneAsync(
-            x => x.Id == maLhp,
+        if (soLuong <= 0) return false;
+        var filter = new BsonDocumentFilterDefinition<LopHocPhan>(new BsonDocument
+        {
+            { "_id", maLhp },
+            { "$expr", new BsonDocument("$lte", new BsonArray { new BsonDocument("$add", new BsonArray { "$SiSoHienTai", soLuong }), "$SiSoToiDa" }) }
+        });
+        var result = await _mongoDbService.LopHocPhans.UpdateOneAsync(
+            filter,
             Builders<LopHocPhan>.Update.Inc(x => x.SiSoHienTai, soLuong));
+        return result.ModifiedCount == 1;
     }
 
-    private async Task GiamSiSoAsync(string maLhp, int soLuong = 1)
+    private async Task<bool> GiamSiSoAsync(string maLhp, int soLuong = 1)
     {
-        if (soLuong <= 0) return;
+        if (soLuong <= 0) return false;
         var filter = Builders<LopHocPhan>.Filter.Eq(x => x.Id, maLhp) &
             Builders<LopHocPhan>.Filter.Gte(x => x.SiSoHienTai, soLuong);
-        await _mongoDbService.LopHocPhans.UpdateOneAsync(
+        var result = await _mongoDbService.LopHocPhans.UpdateOneAsync(
             filter,
             Builders<LopHocPhan>.Update.Inc(x => x.SiSoHienTai, -soLuong));
+        return result.ModifiedCount == 1;
     }
 
-    private static void TinhDiemTongKet(BangDiemMonHoc mon)
+    private async Task KhoiPhucSiSoAsync(string maLhp)
     {
-        mon.DiemTongKet = TinhDiemTongKetValue(mon.DiemThanhPhan);
-        mon.DiemChu = QuyDoiDiemChu(mon.DiemTongKet);
-        if (string.IsNullOrWhiteSpace(mon.DiemChu))
-            mon.DiemChu = "F"; // Default to lowest score
+        await _mongoDbService.LopHocPhans.UpdateOneAsync(x => x.Id == maLhp,
+            Builders<LopHocPhan>.Update.Inc(x => x.SiSoHienTai, 1));
     }
 
-    private static double TinhDiemTongKetValue(DiemThanhPhan d)
+    private async Task DongBoSiSoLopAsync(string maLhp)
     {
-        var cc = d.ChuyenCan ?? 0;
-        var gk = d.GiuaKy ?? 0;
-        var th = d.ThucHanh ?? 0;
-        var ck = d.CuoiKy ?? 0;
-        return Math.Round(cc * 0.1 + gk * 0.2 + th * 0.2 + ck * 0.5, 1);
+        var counts = await _mongoDbService.GetEnrollmentCountsAsync();
+        await _mongoDbService.LopHocPhans.UpdateOneAsync(x => x.Id == maLhp,
+            Builders<LopHocPhan>.Update.Set(x => x.SiSoHienTai, counts.GetValueOrDefault(maLhp)));
     }
 
     private static bool DiemThanhPhanHopLe(DiemThanhPhan? diem) => diem != null &&
@@ -846,38 +905,15 @@ public class SinhVienController : ControllerBase
 
     private static bool DiemTrongKhoang(double? diem) => !diem.HasValue || (diem.Value >= 0 && diem.Value <= 10);
 
-    private static bool CoDiem(DiemThanhPhan? diem) =>
-        diem?.ChuyenCan.HasValue == true || diem?.GiuaKy.HasValue == true ||
-        diem?.ThucHanh.HasValue == true || diem?.CuoiKy.HasValue == true;
-
-    private static BsonDocument TaoDieuKienCoDiem(List<string>? maLhpList = null)
+    private static BsonDocument TaoDieuKienCoDiem(IReadOnlyCollection<string> noPracticeCourseIds, List<string>? maLhpList = null)
     {
-        var coDiem = new BsonDocument("$or", new BsonArray
-        {
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ChuyenCan", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.GiuaKy", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.ThucHanh", BsonNull.Value }), BsonNull.Value }),
-            new BsonDocument("$ne", new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$$b.DiemThanhPhan.CuoiKy", BsonNull.Value }), BsonNull.Value })
-        });
-
-        if (maLhpList == null) return coDiem;
+        var complete = GradeCalculator.CompletedCourseCondition(noPracticeCourseIds);
+        if (maLhpList == null) return complete;
         return new BsonDocument("$and", new BsonArray
         {
-            coDiem,
+            complete,
             new BsonDocument("$in", new BsonArray { "$$b.MaLHP", new BsonArray(maLhpList) })
         });
     }
 
-    private static string QuyDoiDiemChu(double diem) => diem switch
-    {
-        >= 9.0 => "A+",
-        >= 8.5 => "A",
-        >= 8.0 => "B+",
-        >= 7.0 => "B",
-        >= 6.5 => "C+",
-        >= 5.5 => "C",
-        >= 5.0 => "D+",
-        >= 4.0 => "D",
-        _ => "F"
-    };
 }

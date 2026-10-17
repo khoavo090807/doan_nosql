@@ -1,7 +1,6 @@
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using doan_cuoiky_nosql.Models;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
 namespace doan_cuoiky_nosql.Services;
@@ -15,9 +14,7 @@ public class MongoDbService
         var section = configuration.GetSection("MongoDbSettings");
         var connectionString = section.GetValue<string>("ConnectionString") ?? "mongodb://localhost:27017";
         var databaseName = section.GetValue<string>("DatabaseName") ?? "doan_cuoiky";
-
-        var client = new MongoClient(connectionString);
-        _database = client.GetDatabase(databaseName);
+        _database = new MongoClient(connectionString).GetDatabase(databaseName);
     }
 
     public IMongoCollection<SinhVien> SinhViens => _database.GetCollection<SinhVien>("sinhvien");
@@ -37,40 +34,36 @@ public class MongoDbService
         await CreateIndexAsync(LopHocPhans, Builders<LopHocPhan>.IndexKeys.Ascending(x => x.MaMon), "ix_lophocphan_mamon");
         await CreateIndexAsync(MonHocs, Builders<MonHoc>.IndexKeys.Ascending(x => x.MaKhoa), "ix_monhoc_makhoa");
         await CreateIndexAsync(GiangViens, Builders<GiangVien>.IndexKeys.Ascending(x => x.MaKhoa), "ix_giangvien_makhoa");
-
-        var enrollmentCounts = await SinhViens.Aggregate<BsonDocument>(new[]
-        {
-            new BsonDocument("$unwind", "$BangDiem"),
-            new BsonDocument("$group", new BsonDocument
-            {
-                { "_id", "$BangDiem.MaLHP" },
-                { "count", new BsonDocument("$sum", 1) }
-            })
-        }).ToListAsync();
-
-        var countsByLhp = enrollmentCounts
-            .Where(x => x.TryGetValue("_id", out var id) && id.IsString)
-            .ToDictionary(x => x["_id"].AsString, x => x["count"].ToInt32());
-
+        var countsByLhp = await GetEnrollmentCountsAsync();
         var allLhp = await LopHocPhans.Find(_ => true).Project(x => x.Id).ToListAsync();
         var updates = allLhp.Select(id => new UpdateOneModel<LopHocPhan>(
             Builders<LopHocPhan>.Filter.Eq(x => x.Id, id),
             Builders<LopHocPhan>.Update.Set(x => x.SiSoHienTai, countsByLhp.GetValueOrDefault(id))))
-            .Cast<WriteModel<LopHocPhan>>()
-            .ToList();
-
-        if (updates.Count > 0)
-            await LopHocPhans.BulkWriteAsync(updates);
-
-        Console.WriteLine($"[SI SO] Đã khởi tạo sĩ số cho {allLhp.Count} lớp học phần từ BangDiem.");
+            .Cast<WriteModel<LopHocPhan>>().ToList();
+        if (updates.Count > 0) await LopHocPhans.BulkWriteAsync(updates);
+        Console.WriteLine($"[SI SO] Initialized counts for {allLhp.Count} classes from student registrations.");
     }
 
-    private static async Task CreateIndexAsync<T>(
-        IMongoCollection<T> collection,
-        IndexKeysDefinition<T> keys,
-        string name)
+    // Count each student once per class, even if legacy data has duplicate array entries.
+    public async Task<Dictionary<string, int>> GetEnrollmentCountsAsync()
+    {
+        var rows = await SinhViens.Aggregate<BsonDocument>(new[]
+        {
+            new BsonDocument("$unwind", "$BangDiem"),
+            new BsonDocument("$group", new BsonDocument("_id", new BsonArray { "$_id", "$BangDiem.MaLHP" })),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", new BsonDocument("$arrayElemAt", new BsonArray { "$_id", 1 }) },
+                { "count", new BsonDocument("$sum", 1) }
+            })
+        }).ToListAsync();
+        return rows.Where(x => x.TryGetValue("_id", out var id) && id.IsString)
+            .ToDictionary(x => x["_id"].AsString, x => x["count"].ToInt32());
+    }
+
+    private static async Task CreateIndexAsync<T>(IMongoCollection<T> collection, IndexKeysDefinition<T> keys, string name)
     {
         await collection.Indexes.CreateOneAsync(new CreateIndexModel<T>(keys, new CreateIndexOptions { Name = name }));
-        Console.WriteLine($"[INDEX] Đã tạo/xác nhận index {collection.CollectionNamespace.CollectionName}.{name}.");
+        Console.WriteLine($"[INDEX] Confirmed {collection.CollectionNamespace.CollectionName}.{name}.");
     }
 }

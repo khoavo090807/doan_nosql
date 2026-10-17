@@ -18,8 +18,8 @@ public class LopHocPhan
     public int SiSoToiDa { get; set; }
     public int SiSoHienTai { get; set; }
     /// <summary>
-    /// Trạng thái mở/đóng lớp học phần cho sinh viên đăng ký.
-    /// true = mở (sinh viên có thể đăng ký), false = đóng (không cho đăng ký).
+    /// Trạng thái giai đoạn đăng ký học phần của sinh viên.
+    /// true = đang mở (sinh viên có thể đăng ký/hủy), false = đã đóng (không tự đăng ký/hủy).
     /// Default true để tương thích với dữ liệu cũ.
     /// </summary>
     public bool DaMo { get; set; } = true;

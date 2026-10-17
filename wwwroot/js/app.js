@@ -266,10 +266,12 @@ async function loadTeacherDashboard(refId) {
 
 async function loadStudentDashboard(refId) {
   if (!refId) return;
-  const [sv, hocluc] = await Promise.all([
+  const [sv, hocluc, monHocs] = await Promise.all([
     api('/api/SinhVien/' + encodeURIComponent(refId)),
-    api('/api/SinhVien/' + encodeURIComponent(refId) + '/hocluc').catch(() => null)
+    api('/api/SinhVien/' + encodeURIComponent(refId) + '/hocluc').catch(() => null),
+    api('/api/MonHoc').catch(() => [])
   ]);
+  _courseScoreConfig = new Map((monHocs || []).map(m => [m.Id, m]));
   const hero = document.querySelector('.hero');
   if (hero) {
     hero.querySelector('h3').textContent = `Xin chào, ${sv.HoTen}`;
@@ -279,7 +281,7 @@ async function loadStudentDashboard(refId) {
     ['MSSV', sv.Id, 'bi-person-vcard', 'primary'],
     ['Lớp sinh hoạt', sv.LopSinhHoat || 'N/A', 'bi-people', 'success'],
     ['Tín chỉ đã học', (sv.BangDiem || []).reduce((s, b) => s + (b.SoTinChi || 0), 0), 'bi-award', 'warning'],
-    ['GPA hệ 10', hocluc ? Number(hocluc.GPA).toFixed(2) : '—', 'bi-bar-chart', 'info']
+    ['GPA hệ 10', hocluc ? (hocluc.GPA == null ? '\u2014' : Number(hocluc.GPA).toFixed(2)) : '—', 'bi-bar-chart', 'info']
   ]);
   const statCards = document.getElementById('statCards');
   if (statCards) {
@@ -524,7 +526,7 @@ async function xemSv(id) {
             <p class="text-muted mb-0">Lớp ${sv.LopSinhHoat} · Khoa: ${sv.TenKhoa || sv.MaKhoa || "N/A"} · ${sv.Email || ''} · ${sv.TrangThai || ""}</p>
           </div>
           ${hocluc ? `<div class="text-end">
-            <div class="gpa-display">${Number(hocluc.GPA).toFixed(2)}</div>
+            <div class="gpa-display">${(hocluc.GPA == null ? '\u2014' : Number(hocluc.GPA).toFixed(2))}</div>
             <div>${xepLoaiBadge(hocluc.XepLoai)}</div>
           </div>` : ""}
         </div>
@@ -551,12 +553,15 @@ function renderStudentDetailGrades(grades) {
   const pages = Math.max(1, Math.ceil(grades.length / _svDetailPageSize));
   _svDetailPage = Math.min(_svDetailPage, pages);
   const visible = grades.slice((_svDetailPage - 1) * _svDetailPageSize, _svDetailPage * _svDetailPageSize);
-  body.innerHTML = visible.length ? visible.map(b => `<tr>
+  body.innerHTML = visible.length ? visible.map(b => {
+    const hasScore = gradeComplete(b);
+    return `<tr>
     <td>${b.MaMon}</td><td>${b.TenMon}</td><td class="text-end">${b.SoTinChi}</td>
     <td>${b.GiangVien?.HoTen || b.GiangVien?.TenGV || ''}</td>
     <td class="text-end">${b.DiemThanhPhan?.ChuyenCan ?? ''}</td><td class="text-end">${b.DiemThanhPhan?.GiuaKy ?? ''}</td>
     <td class="text-end">${b.DiemThanhPhan?.ThucHanh ?? ''}</td><td class="text-end">${b.DiemThanhPhan?.CuoiKy ?? ''}</td>
-    <td class="text-end"><b>${b.DiemTongKet}</b> (${b.DiemChu})</td></tr>`).join('')
+    <td class="text-end"><b>${hasScore ? b.DiemTongKet : gradeStatus(b)}</b> (${hasScore ? (b.DiemChu || '\u0110\u00e3 nh\u1eadp \u0111i\u1ec3m') : gradeStatus(b)})</td></tr>`;
+  }).join('')
     : '<tr><td colspan="9" class="text-center text-muted py-3">Chưa có điểm.</td></tr>';
   renderTablePagination('svDetailPagination', grades.length, _svDetailPage, _svDetailPageSize,
     page => { _svDetailPage = page; renderStudentDetailGrades(grades); },
@@ -733,20 +738,29 @@ async function editLhp(id) {
       });
     }
     
+    const enrolledCount = Number(l.SiSoHienTai || 0);
+    const hasEnrollments = enrolledCount > 0;
     document.getElementById("lhpIsEdit").value = l.Id;
     document.getElementById("lhpId").value = l.Id;
-    document.getElementById("lhpId").disabled = false;
+    document.getElementById("lhpId").disabled = hasEnrollments;
     document.getElementById("lhpId").classList.remove("is-invalid");
     clearModalError("modalLhp");
     
     document.getElementById("lhpHk").value = l.Hocky;
+    document.getElementById("lhpHk").disabled = hasEnrollments;
     document.getElementById("lhpNam").value = l.NamHoc;
+    document.getElementById("lhpNam").disabled = hasEnrollments;
+    const lockNotice = document.getElementById("lhpEnrollmentLockNotice");
+    if (lockNotice) lockNotice.classList.toggle('d-none', !hasEnrollments);
+    const capacityInput = document.getElementById("lhpSiso");
+    capacityInput.min = String(Math.max(1, Math.min(enrolledCount, Number(l.SiSoToiDa || 1))));
     document.getElementById("lhpPhong").value = l.PhongHoc || "";
     document.getElementById("lhpLich").value = l.LichHoc || "";
     document.getElementById("lhpSiso").value = l.SiSoToiDa;
     // Số tín chỉ
     const soTinChiEl = document.getElementById("lhpSoTinChi");
     if (soTinChiEl) {
+      soTinChiEl.disabled = hasEnrollments;
       soTinChiEl.value = l.SoTinChi || 3;
       soTinChiEl.classList.remove("is-invalid");
     }
@@ -776,6 +790,10 @@ async function editLhp(id) {
     if (l.GiangVien?.MaGV) {
       window.setGvDisplay(l.GiangVien.MaGV, getTeacherName(l.GiangVien));
     }
+    ['lhpKhoaDropdown', 'lhpMonDropdown'].forEach(fieldId => {
+      const field = document.getElementById(fieldId);
+      if (field) field.disabled = hasEnrollments;
+    })
     
     document.getElementById("lhpModalTitle").innerText = "Chỉnh sửa Lớp học phần";
     new bootstrap.Modal(document.getElementById("modalLhp")).show();
@@ -787,7 +805,10 @@ async function editLhp(id) {
 function openCreateLhp() {
   document.getElementById("lhpIsEdit").value = "";
   document.getElementById("lhpId").disabled = false;
-  ['lhpHk', 'lhpNam', 'lhpDaMo', 'lhpChoPhepGvNhapSuaDiem', 'lhpKhoaDropdown', 'lhpMonDropdown', 'lhpGvDropdown'].forEach(fieldId => {
+  const lockNotice = document.getElementById('lhpEnrollmentLockNotice');
+  if (lockNotice) lockNotice.classList.add('d-none');
+  document.getElementById('lhpSiso').min = '1';
+  ['lhpHk', 'lhpNam', 'lhpDaMo', 'lhpChoPhepGvNhapSuaDiem', 'lhpKhoaDropdown', 'lhpMonDropdown', 'lhpGvDropdown', 'lhpSoTinChi'].forEach(fieldId => {
     const field = document.getElementById(fieldId);
     if (field) field.disabled = false;
   });
@@ -960,6 +981,33 @@ let _transcriptCache = [];
 let _transcriptPage = 1;
 let _transcriptPageSize = 10;
 let _currentFilterLhp = '';
+let _courseScoreConfig = new Map();
+let _courseIdByLhp = new Map();
+function gradeComplete(b) {
+  const d = b?.DiemThanhPhan;
+  const course = _courseScoreConfig.get(b?.MaMon);
+  const usesPractice = !course || Number(course.ThucHanh) > 0;
+  return b?.DiemTongKet != null && d?.ChuyenCan != null && d?.GiuaKy != null &&
+    d?.CuoiKy != null && (!usesPractice || d?.ThucHanh != null);
+}
+function gradeStatus(b) {
+  const d = b?.DiemThanhPhan;
+  return ['ChuyenCan','GiuaKy','ThucHanh','CuoiKy'].some(k => d?.[k] != null)
+    ? 'Ch\u01b0a ho\u00e0n t\u1ea5t \u0111i\u1ec3m' : 'Ch\u01b0a c\u00f3 \u0111i\u1ec3m';
+}
+function configurePracticeInput(id, maMon) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const course = _courseScoreConfig.get(maMon);
+  const applies = !course || Number(course.ThucHanh) > 0;
+  input.disabled = !applies;
+  input.required = false;
+  if (!applies) input.value = '';
+}
+function optionalScore(id) {
+  const input = document.getElementById(id);
+  return !input || input.disabled || input.value.trim() === '' ? null : Number(input.value);
+}
 let _scoreEditableLhpIds = new Set();
 
 async function initQuanLyDiemPage() {
@@ -1027,20 +1075,24 @@ async function downloadTranscriptPdf() {
 }
 
 async function loadStudentTranscript(svId) {
-  const [sv, hocluc] = await Promise.all([
+  const [sv, hocluc, monHocs] = await Promise.all([
     api('/api/SinhVien/' + encodeURIComponent(svId)),
-    api('/api/SinhVien/' + encodeURIComponent(svId) + '/hocluc').catch(() => null)
+    api('/api/SinhVien/' + encodeURIComponent(svId) + '/hocluc').catch(() => null),
+    api('/api/MonHoc').catch(() => [])
   ]);
+  _courseScoreConfig = new Map((monHocs || []).map(m => [m.Id, m]));
   document.getElementById('svProfileHoTen').textContent = `${sv.HoTen} (${sv.Id})`;
   document.getElementById('svProfileDetail').textContent = `Lớp: ${sv.LopSinhHoat || 'N/A'} | Khoa: ${sv.TenKhoa || sv.MaKhoa || 'N/A'} | Email: ${sv.Email || 'N/A'}`;
   const bangDiem = sv.BangDiem || [];
   const tongTc = bangDiem.reduce((s, b) => s + (b.SoTinChi || 0), 0);
   document.getElementById('svSumTc').textContent = tongTc;
-  document.getElementById('svGpa10').textContent = hocluc ? Number(hocluc.GPA).toFixed(2) : '0.00';
+  document.getElementById('svGpa10').textContent = hocluc?.GPA != null ? Number(hocluc.GPA).toFixed(2) : '\u2014';
   document.getElementById('svXepLoaiBadge').innerHTML = hocluc ? xepLoaiBadge(hocluc.XepLoai) : '<span class="badge bg-secondary">Chưa đủ dữ liệu</span>';
 
   _transcriptCache = bangDiem;
-  document.getElementById('svTranscriptTableBody').innerHTML = bangDiem.length ? bangDiem.map(b => `
+  document.getElementById('svTranscriptTableBody').innerHTML = bangDiem.length ? bangDiem.map(b => {
+    const hasScore = gradeComplete(b);
+    return `
     <tr>
       <td class="text-center"><code>${b.MaLHP}</code></td>
       <td><b>${b.TenMon}</b><br/><small class="text-muted">${b.MaMon}</small></td>
@@ -1050,16 +1102,22 @@ async function loadStudentTranscript(svId) {
       <td class="text-center">${b.DiemThanhPhan?.GiuaKy ?? '—'}</td>
       <td class="text-center">${b.DiemThanhPhan?.ThucHanh ?? '—'}</td>
       <td class="text-center">${b.DiemThanhPhan?.CuoiKy ?? '—'}</td>
-      <td class="text-center fw-bold text-primary">${Number(b.DiemTongKet || 0).toFixed(1)}</td>
-      <td class="text-center"><span class="badge bg-light text-dark border">${b.DiemChu || 'Chưa có'}</span></td>
-      <td class="text-center">${Number(b.DiemTongKet || 0) >= 4 ? '<span class="badge bg-success">Đạt</span>' : '<span class="badge bg-danger">Chưa đạt</span>'}</td>
-    </tr>`).join('') : '<tr><td colspan="11" class="text-center py-4 text-muted">Chưa có môn học nào.</td></tr>';
+      <td class="text-center fw-bold text-primary">${hasScore ? Number(b.DiemTongKet).toFixed(1) : gradeStatus(b)}</td>
+      <td class="text-center"><span class="badge bg-light text-dark border">${hasScore ? (b.DiemChu || '\u0110\u00e3 nh\u1eadp \u0111i\u1ec3m') : gradeStatus(b)}</span></td>
+      <td class="text-center">${!hasScore ? `<span class="badge bg-secondary">${gradeStatus(b)}</span>` : Number(b.DiemTongKet) >= 4 ? '<span class="badge bg-success">\u0110\u1ea1t</span>' : '<span class="badge bg-danger">Ch\u01b0a \u0111\u1ea1t</span>'}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" class="text-center py-4 text-muted">Chưa có môn học nào.</td></tr>';
 
   applyTranscriptPage();
   const cloRows = [];
   bangDiem.forEach(b => {
-    (b.DiemCLO || []).forEach(clo => cloRows.push(`
-      <tr><td class="text-center"><code>${clo.MaCLO}</code></td><td>${b.TenMon}</td><td>Chuẩn đầu ra ${clo.MaCLO}</td><td class="text-center">—</td><td class="text-center">${clo.DiemDat ?? 0}</td><td class="text-center">${clo.KetQua === 'Đạt' || Number(clo.DiemDat) >= 5 ? '<span class="badge bg-success">Đạt</span>' : clo.KetQua === 'Không đạt' ? '<span class="badge bg-danger">Không đạt</span>' : '<span class="badge bg-secondary">Chưa đánh giá</span>'}</td></tr>`));
+    (b.DiemCLO || []).forEach(clo => {
+      const complete = gradeComplete(b);
+      const result = !complete ? '<span class="badge bg-secondary">Ch\u01b0a \u0111\u00e1nh gi\u00e1</span>' : clo.KetQua === '\u0110\u1ea1t'
+        ? '<span class="badge bg-success">\u0110\u1ea1t</span>' : clo.KetQua === 'Kh\u00f4ng \u0111\u1ea1t'
+          ? '<span class="badge bg-danger">Kh\u00f4ng \u0111\u1ea1t</span>' : '<span class="badge bg-secondary">Ch\u01b0a \u0111\u00e1nh gi\u00e1</span>';
+      cloRows.push(`<tr><td class="text-center"><code>${clo.MaCLO}</code></td><td>${b.TenMon}</td><td>Chu\u1ea9n \u0111\u1ea7u ra ${clo.MaCLO}</td><td class="text-center">\u2014</td><td class="text-center">${complete ? (clo.DiemDat ?? '\u2014') : '\u2014'}</td><td class="text-center">${result}</td></tr>`);
+    });
   });
   document.getElementById('svCloTableBody').innerHTML = cloRows.length ? cloRows.join('') : '<tr><td colspan="6" class="text-center py-3 text-muted">Chưa có dữ liệu chuẩn đầu ra CLO.</td></tr>';
 }
@@ -1183,14 +1241,17 @@ function renderDiemSvTableCore(list) {
     let xepLoaiHtml = '<span class="text-muted small">—</span>';
 
     if (bangDiem.length > 0) {
-      const totalTc = bangDiem.reduce((sum, b) => sum + (b.SoTinChi || 0), 0);
+      const graded = bangDiem.filter(gradeComplete);
+      if (graded.length) {
+      const totalTc = graded.reduce((sum, b) => sum + (b.SoTinChi || 0), 0);
       const gpa = totalTc > 0
-        ? bangDiem.reduce((sum, b) => sum + (b.DiemTongKet || 0) * (b.SoTinChi || 0), 0) / totalTc
-        : bangDiem.reduce((sum, b) => sum + (b.DiemTongKet || 0), 0) / bangDiem.length;
+        ? graded.reduce((sum, b) => sum + b.DiemTongKet * (b.SoTinChi || 0), 0) / totalTc
+        : graded.reduce((sum, b) => sum + b.DiemTongKet, 0) / graded.length;
       gpaHtml = `<span class="fw-bold text-primary">${Number(gpa || 0).toFixed(2)}</span>`;
       xepLoaiHtml = xepLoaiBadge(
         gpa >= 9 ? 'Xuất sắc' : gpa >= 8 ? 'Giỏi' : gpa >= 7 ? 'Khá' : gpa >= 5 ? 'Trung bình' : 'Yếu'
       );
+      }
     }
 
     const canEdit = role === 'admin' || (role === 'giaovien' && _scoreEditableLhpIds.has(_currentFilterLhp));
@@ -1199,13 +1260,14 @@ function renderDiemSvTableCore(list) {
       const bdList = bangDiem.filter(b => b.MaLHP === _currentFilterLhp);
       inlineActionHtml = bdList.map(bd => `
         <button class="btn btn-sm btn-outline-success me-1" title="Sửa điểm: ${bd.TenMon}"
-          onclick="openModalEditDiem('${sv.Id}', '${bd.MaLHP}', '${bd.TenMon}', ${bd.DiemThanhPhan?.ChuyenCan ?? 0}, ${bd.DiemThanhPhan?.GiuaKy ?? 0}, ${bd.DiemThanhPhan?.ThucHanh ?? 0}, ${bd.DiemThanhPhan?.CuoiKy ?? 0})">
+          onclick="openModalEditDiem('${sv.Id}', '${bd.MaLHP}', '${bd.TenMon}', ${bd.DiemThanhPhan?.ChuyenCan ?? 'null'}, ${bd.DiemThanhPhan?.GiuaKy ?? 'null'}, ${bd.DiemThanhPhan?.ThucHanh ?? 'null'}, ${bd.DiemThanhPhan?.CuoiKy ?? 'null'})">
           <i class="bi bi-pencil-square me-1"></i>Sửa
         </button>
-        <button class="btn btn-sm btn-outline-danger me-1" title="Xóa môn: ${bd.TenMon}"
+        <button class="btn btn-sm btn-outline-danger me-1" title="Xóa điểm: ${bd.TenMon}"
           onclick="xoaMonKhoiBangDiem('${sv.Id}', '${bd.MaLHP}', '${bd.TenMon}')">
-          <i class="bi bi-trash me-1"></i>Xóa
-        </button>`).join('');
+          <i class="bi bi-trash me-1"></i>Xóa điểm
+        </button>
+        ${role === 'admin' ? `<button class="btn btn-sm btn-danger me-1" title="Xóa sinh viên khỏi lớp: ${bd.TenMon}" onclick="xoaSinhVienKhoiLop('${sv.Id}', '${bd.MaLHP}', '${bd.TenMon}')"><i class="bi bi-person-dash me-1"></i>Xóa khỏi lớp</button>` : ''}`).join('');
     }
 
     return `
@@ -1235,10 +1297,10 @@ async function openChiTietDiem(svId, filterMaLhp) {
   // Đặt MSSV để modal push dùng được
   document.getElementById('modalPushSvId').value = svId;
 
-  // Ẩn/hiện nút thêm môn trong modal theo role
+  // Chỉ Admin được thêm đăng ký học phần từ giao diện quản lý điểm.
   const modalPushBtn = document.querySelector('#modalChiTietDiem button[onclick="openModalPushFromChiTiet()"]');
   if (modalPushBtn) {
-    modalPushBtn.style.display = (role === 'sinhvien' || (role === 'giaovien' && _scoreEditableLhpIds.size === 0)) ? 'none' : '';
+    modalPushBtn.style.display = role === 'admin' ? '' : 'none';
   }
 
   // Hiển thị modal ngay với trạng thái loading
@@ -1280,7 +1342,7 @@ async function openChiTietDiem(svId, filterMaLhp) {
     if (hocluc) {
       document.getElementById('chiTietGpaBadge').innerHTML = `
         <span class="text-muted small me-2">GPA Tích lũy (Hệ 10):</span>
-        <span class="fs-5 fw-bold text-primary me-2">${Number(hocluc.GPA).toFixed(2)}</span>
+        <span class="fs-5 fw-bold text-primary me-2">${(hocluc.GPA == null ? '\u2014' : Number(hocluc.GPA).toFixed(2))}</span>
         ${xepLoaiBadge(hocluc.XepLoai)}`;
     } else {
       document.getElementById('chiTietGpaBadge').innerHTML = '<span class="badge bg-secondary">Chưa đủ dữ liệu GPA</span>';
@@ -1308,15 +1370,18 @@ async function openChiTietDiem(svId, filterMaLhp) {
           currentLhpScorePermissions[b.MaLHP] === true
         );
 
+        const complete = gradeComplete(b);
         const thaoTacHtml = coQuyenSua ? `
             <button class="btn btn-sm btn-outline-success me-1" title="Sửa điểm ($set)"
-              onclick="openModalEditDiem('${sv.Id}', '${b.MaLHP}', '${b.TenMon}', ${b.DiemThanhPhan?.ChuyenCan ?? 0}, ${b.DiemThanhPhan?.GiuaKy ?? 0}, ${b.DiemThanhPhan?.ThucHanh ?? 0}, ${b.DiemThanhPhan?.CuoiKy ?? 0})">
+              onclick="openModalEditDiem('${sv.Id}', '${b.MaLHP}', '${b.TenMon}', ${b.DiemThanhPhan?.ChuyenCan ?? 'null'}, ${b.DiemThanhPhan?.GiuaKy ?? 'null'}, ${b.DiemThanhPhan?.ThucHanh ?? 'null'}, ${b.DiemThanhPhan?.CuoiKy ?? 'null'})">
               <i class="bi bi-pencil-square"></i> Sửa
             </button>
-            <button class="btn btn-sm btn-outline-danger" title="Xóa môn ($pull)"
+            <button class="btn btn-sm btn-outline-danger" title="Xóa điểm"
               onclick="xoaMonKhoiBangDiem('${sv.Id}', '${b.MaLHP}', '${b.TenMon}')">
-              <i class="bi bi-trash"></i> Xóa
+              <i class="bi bi-trash"></i> Xóa điểm
             </button>` : `<span class="text-muted small">Chỉ xem</span>`;
+
+        const xoaKhoiLopHtml = role === 'admin' ? `<button class="btn btn-sm btn-danger ms-1" title="Xóa khỏi lớp" onclick="xoaSinhVienKhoiLop('${sv.Id}', '${b.MaLHP}', '${b.TenMon}')"><i class="bi bi-person-dash"></i> Xóa khỏi lớp</button>` : '';
 
         return `
         <tr>
@@ -1331,9 +1396,9 @@ async function openChiTietDiem(svId, filterMaLhp) {
           <td class="text-center">${b.DiemThanhPhan?.GiuaKy ?? '-'}</td>
           <td class="text-center">${b.DiemThanhPhan?.ThucHanh ?? '-'}</td>
           <td class="text-center">${b.DiemThanhPhan?.CuoiKy ?? '-'}</td>
-          <td class="text-center fw-bold text-primary">${b.DiemTongKet}</td>
-          <td class="text-center"><span class="badge bg-light text-dark border">${b.DiemChu}</span></td>
-          <td class="text-end">${thaoTacHtml}</td>
+          <td class="text-center fw-bold text-primary">${complete ? b.DiemTongKet : gradeStatus(b)}</td>
+          <td class="text-center"><span class="badge bg-light text-dark border">${complete ? (b.DiemChu || '\u2014') : gradeStatus(b)}</span></td>
+          <td class="text-end">${thaoTacHtml}${xoaKhoiLopHtml}</td>
         </tr>`;
       }).join('');
     }
@@ -1356,6 +1421,10 @@ function cleanupModalBackdrop() {
 }
 
 function openModalPushFromChiTiet() {
+  if (localStorage.getItem('role') !== 'admin') {
+    toast('Chỉ Admin được thêm sinh viên vào lớp học phần.', 'warning');
+    return;
+  }
   const modal = document.getElementById('modalChiTietDiem');
   const svId = modal.dataset.svId || '';
   const maKhoa = modal.dataset.maKhoa || '';
@@ -1367,11 +1436,19 @@ function openModalPushFromChiTiet() {
 }
 
 function openModalPush() {
+  if (localStorage.getItem('role') !== 'admin') {
+    toast('Chỉ Admin được thêm sinh viên vào lớp học phần.', 'warning');
+    return;
+  }
   fillLhpSelect();
 }
 
 async function submitPushDiemModal(e) {
   e.preventDefault();
+  if (localStorage.getItem('role') !== 'admin') {
+    toast('Chỉ Admin được thêm sinh viên vào lớp học phần.', 'warning');
+    return;
+  }
   const svId = document.getElementById('modalPushSvId').value.trim();
   const sel = document.getElementById('modalPushLhp');
   const opt = sel.selectedOptions[0];
@@ -1389,10 +1466,10 @@ async function submitPushDiemModal(e) {
     Hocky: opt.dataset.hk,
     NamHoc: opt.dataset.nam,
     DiemThanhPhan: {
-      ChuyenCan: Number(document.getElementById('modalPushCc').value),
-      GiuaKy: Number(document.getElementById('modalPushGk').value),
-      ThucHanh: Number(document.getElementById('modalPushTh').value),
-      CuoiKy: Number(document.getElementById('modalPushCk').value)
+      ChuyenCan: optionalScore('modalPushCc'),
+      GiuaKy: optionalScore('modalPushGk'),
+      ThucHanh: optionalScore('modalPushTh'),
+      CuoiKy: optionalScore('modalPushCk')
     }
   };
 
@@ -1416,10 +1493,11 @@ function openModalEditDiem(svId, maLhp, tenMon, cc, gk, th, ck) {
   document.getElementById('editDiemMaLhp').value = maLhp;
   document.getElementById('editDiemTenMon').innerText = tenMon;
   document.getElementById('editDiemLhpLabel').innerText = "Mã LHP: " + maLhp;
-  document.getElementById('editDiemCc').value = cc;
-  document.getElementById('editDiemGk').value = gk;
-  document.getElementById('editDiemTh').value = th;
-  document.getElementById('editDiemCk').value = ck;
+  document.getElementById('editDiemCc').value = cc ?? '';
+  document.getElementById('editDiemGk').value = gk ?? '';
+  document.getElementById('editDiemTh').value = th ?? '';
+  configurePracticeInput('editDiemTh', _courseIdByLhp.get(maLhp));
+  document.getElementById('editDiemCk').value = ck ?? '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditDiem')).show();
 }
 
@@ -1428,10 +1506,10 @@ async function submitEditDiemModal(e) {
   const svId = document.getElementById('editDiemSvId').value;
   const maLhp = document.getElementById('editDiemMaLhp').value;
   const body = {
-    ChuyenCan: Number(document.getElementById('editDiemCc').value),
-    GiuaKy: Number(document.getElementById('editDiemGk').value),
-    ThucHanh: Number(document.getElementById('editDiemTh').value),
-    CuoiKy: Number(document.getElementById('editDiemCk').value)
+    ChuyenCan: optionalScore('editDiemCc'),
+    GiuaKy: optionalScore('editDiemGk'),
+    ThucHanh: optionalScore('editDiemTh'),
+    CuoiKy: optionalScore('editDiemCk')
   };
 
   try {
@@ -1454,17 +1532,27 @@ async function submitEditDiemModal(e) {
 }
 
 async function xoaMonKhoiBangDiem(svId, maLhp, tenMon) {
-  if (!await confirmAction(`Xóa môn "${tenMon}" (${maLhp}) khỏi bảng điểm của sinh viên ${svId}?`, { title: 'Xóa môn khỏi bảng điểm', confirmText: 'Xóa', variant: 'danger' })) return;
+  if (!await confirmAction('Bạn có chắc chắn muốn xóa toàn bộ điểm của sinh viên này trong học phần? Sinh viên vẫn được giữ trong danh sách lớp.', { title: 'Xóa điểm', confirmText: 'Xóa điểm', variant: 'danger' })) return;
   try {
     await api(`/api/SinhVien/${encodeURIComponent(svId)}/diem/${encodeURIComponent(maLhp)}`, {
       method: "DELETE"
     });
-    toast(`Đã xóa môn "${tenMon}" khỏi bảng điểm.`);
+    toast(`Đã xóa điểm môn "${tenMon}". Sinh viên vẫn ở trong lớp.`);
     loadDiemSvList();
     openChiTietDiem(svId);
   } catch (err) {
     toast("Lỗi khi xóa môn: " + err.message, "danger");
   }
+}
+
+async function xoaSinhVienKhoiLop(svId, maLhp, tenMon) {
+  if (!await confirmAction(`Xóa sinh viên ${svId} khỏi lớp học phần "${tenMon}" (${maLhp})? Đăng ký sẽ bị hủy và sĩ số lớp giảm.`, { title: 'Xóa khỏi lớp học phần', confirmText: 'Xóa khỏi lớp', variant: 'danger' })) return;
+  try {
+    await api(`/api/SinhVien/${encodeURIComponent(svId)}/lophocphan/${encodeURIComponent(maLhp)}`, { method: 'DELETE' });
+    toast(`Đã xóa ${svId} khỏi lớp ${maLhp}.`);
+    loadDiemSvList();
+    openChiTietDiem(svId);
+  } catch (err) { toast('Lỗi khi xóa sinh viên khỏi lớp: ' + err.message, 'danger'); }
 }
 
 async function fillLhpSelect(maKhoa) {
@@ -1473,6 +1561,8 @@ async function fillLhpSelect(maKhoa) {
     api("/api/MonHoc")
   ]);
 
+  _courseScoreConfig = new Map(allMonHoc.map(m => [m.Id, m]));
+  _courseIdByLhp = new Map(allLhp.map(l => [l.Id, l.MaMon]));
   // Teachers can only enter scores in sections explicitly enabled by an admin.
   if (localStorage.getItem('role') === 'giaovien') {
     _scoreEditableLhpIds = new Set(allLhp.filter(l => l.ChoPhepGvNhapSuaDiem === true).map(l => l.Id));
@@ -1501,7 +1591,11 @@ async function fillLhpSelect(maKhoa) {
   const p1 = document.getElementById("pushLhp");
   if (p1) p1.innerHTML = options;
   const p2 = document.getElementById("modalPushLhp");
-  if (p2) p2.innerHTML = options;
+  if (p2) {
+    p2.innerHTML = options;
+    p2.onchange = () => configurePracticeInput('modalPushTh', p2.selectedOptions[0]?.dataset.mamon);
+    configurePracticeInput('modalPushTh', p2.selectedOptions[0]?.dataset.mamon);
+  }
 }
 
 // Table paging and debounced client filtering for the grading views.
@@ -1535,6 +1629,7 @@ function filterDiemTableNow() {
 
 async function loadBaoCao() {
   fillLopSelects();
+  try { const courses = await api('/api/MonHoc'); _courseScoreConfig = new Map(courses.map(m => [m.Id, m])); } catch { _courseScoreConfig = new Map(); }
   const role = localStorage.getItem('role');
   const refId = localStorage.getItem('refId');
   const lop = document.getElementById('bcLop')?.value || '';
@@ -1600,15 +1695,10 @@ async function loadBaoCao() {
       // Tính GPA và xếp loại cho từng sinh viên dựa trên điểm đã thu thập
       const studentReports = [];
       for (const [, data] of studentMap) {
-        const filteredBD = data.diemEntries.filter(b =>
-          b.DiemThanhPhan?.ChuyenCan != null ||
-          b.DiemThanhPhan?.GiuaKy != null ||
-          b.DiemThanhPhan?.ThucHanh != null ||
-          b.DiemThanhPhan?.CuoiKy != null
-        );
+        const filteredBD = data.diemEntries.filter(gradeComplete);
         const tongTinChi = filteredBD.reduce((s, b) => s + (b.SoTinChi || 0), 0);
         const tongDiemHeSo = filteredBD.reduce((s, b) => s + (b.DiemTongKet || 0) * (b.SoTinChi || 0), 0);
-        const gpa = tongTinChi > 0 ? Math.round((tongDiemHeSo / tongTinChi) * 100) / 100 : 0;
+        const gpa = tongTinChi > 0 ? Math.round((tongDiemHeSo / tongTinChi) * 100) / 100 : null;
         let xepLoai = 'Chưa có điểm';
         if (filteredBD.length) {
           xepLoai = 'Yếu';
@@ -1641,11 +1731,12 @@ async function loadBaoCao() {
 
     const statEl = document.getElementById('bcStatCards');
     if (statEl && list.length) {
-      const gpas = list.map(r => Number(r.GPA));
-      const avg = (gpas.reduce((a,b)=>a+b,0)/gpas.length).toFixed(2);
-      const max = Math.max(...gpas).toFixed(2);
-      const min = Math.min(...gpas).toFixed(2);
-      const pass = list.filter(r => Number(r.GPA) >= 5).length;
+      const gpas = list.filter(r => r.GPA != null).map(r => Number(r.GPA));
+      const avg = gpas.length ? (gpas.reduce((a,b)=>a+b,0)/gpas.length).toFixed(2) : '?';
+      const max = gpas.length ? Math.max(...gpas).toFixed(2) : '?';
+      const min = gpas.length ? Math.min(...gpas).toFixed(2) : '?';
+      const pass = list.filter(r => r.GPA != null && Number(r.GPA) >= 5).length;
+      const failed = list.filter(r => r.GPA != null && Number(r.GPA) < 5).length;
       statEl.innerHTML = [
         ['Tổng sinh viên', list.length, 'bi-people-fill', 'primary'],
         ['GPA trung bình', avg, 'bi-bar-chart-fill', 'info'],
@@ -1695,8 +1786,8 @@ async function loadBaoCao() {
       return;
     }
     tbody.innerHTML = list.map((r, idx) => {
-      const gpa = Number(r.GPA);
-      const gpaClass = gpa >= 8 ? 'score-pass' : gpa >= 5 ? 'score-avg' : 'score-fail';
+      const gpa = r.GPA == null ? null : Number(r.GPA);
+      const gpaClass = gpa == null ? '' : gpa >= 8 ? 'score-pass' : gpa >= 5 ? 'score-avg' : 'score-fail';
       const studentId = r.Id ?? r._id ?? '';
       return `<tr>
         <td class="text-muted small">${idx+1}</td>
@@ -1704,7 +1795,7 @@ async function loadBaoCao() {
         <td class="fw-semibold">${r.HoTen}</td>
         <td><span class="badge bg-light text-dark border">${r.LopSinhHoat}</span></td>
         ${role !== 'giaovien' ? `<td class="text-center">${r.TongTinChi} TC</td>` : ''}
-        <td class="text-center"><span class="${gpaClass} fs-6">${gpa.toFixed(2)}</span></td>
+        <td class="text-center"><span class="${gpaClass} fs-6">${gpa == null ? '?' : gpa.toFixed(2)}</span></td>
         <td class="text-center">${xepLoaiBadge(r.XepLoai)}</td>
       </tr>`;
     }).join('');
@@ -1905,7 +1996,7 @@ async function loadDangKyHocPhanPage() {
     document.getElementById('countRegistered').textContent = registered.length;
     document.getElementById('sumTcRegistered').textContent = registered.reduce((s, b) => s + (b.SoTinChi || 0), 0);
     document.getElementById('registeredTableBody').innerHTML = registered.length ? registered.map(b => {
-      const hasScore = ['ChuyenCan', 'GiuaKy', 'ThucHanh', 'CuoiKy'].some(key => b.DiemThanhPhan?.[key] != null) || Number(b.DiemTongKet || 0) > 0;
+      const hasScore = b.DiemTongKet != null && ['ChuyenCan', 'GiuaKy', 'ThucHanh', 'CuoiKy'].some(key => b.DiemThanhPhan?.[key] != null);
       const classIsOpen = lhpById.get(b.MaLHP)?.DaMo === true;
       const scoreStatus = hasScore
         ? `<span class="badge bg-success">${b.DiemTongKet} (${b.DiemChu || 'Đã nhập điểm'})</span>`
